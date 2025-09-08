@@ -1,13 +1,347 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>8‑Track Recorder</title>
-    <meta name="description" content="Open-source web Portastudio: 8-track recorder in the browser." />
+    <title>Four‑Track Recorder — 8‑Track + Transport + Timeline</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      :root{ --bg:#f6f7fb; --card:#fff; --ink:#0f172a; --muted:#64748b; --brand:#2563eb; --accent:#10b981; }
+      *{box-sizing:border-box}
+      body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+      #root{max-width:1100px;margin:24px auto;padding:16px}
+      h1{margin:0 0 6px 0}
+      .sub{color:var(--muted);margin:0 0 16px 0}
+      .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+      .btn{padding:8px 12px;border-radius:10px;cursor:pointer;border:0;background:#e5e7eb}
+      .btn.primary{background:var(--brand);color:white}
+      .btn.green{background:var(--accent);color:white}
+      .btn.gray{background:#e5e7eb}
+      .btn.red{background:#ef4444;color:white}
+      .btn:disabled{opacity:.5;cursor:not-allowed}
+      select,input[type="number"],input[type="text"],input[type="range"]{padding:6px 8px;border-radius:10px;border:1px solid #e5e7eb;background:#fff}
+      input[type="range"]{padding:0}
+      .card{background:var(--card);padding:12px;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:12px}
+      .row{display:grid;grid-template-columns: 32px 160px 1fr 1fr 110px 70px 60px;gap:8px;align-items:center}
+      .mini{font-size:12px;color:var(--muted)}
+      .clips{display:grid;gap:8px;margin-top:6px}
+      .hr{height:1px;background:#e5e7eb;margin:10px 0}
+      .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+      .nowrap{white-space:nowrap}
+      .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+      .pill{font-size:11px;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#3730a3}
+      .pairBadge{font-size:11px;padding:2px 8px;border-radius:999px;background:#ecfeff;color:#155e75;border:1px solid #cffafe}
+
+      /* Timeline */
+      .timeline{position:relative;height:48px;border-radius:10px;background:linear-gradient(90deg, rgba(0,0,0,0.04) 0 100%)}
+      .ticks{position:absolute;inset:0;background:repeating-linear-gradient(90deg, transparent 0px, transparent calc(100%/60), rgba(0,0,0,.07) calc(100%/60) calc(100%/60 + 1px));}
+      .tickLabels{position:absolute;inset:0;pointer-events:none}
+      .tickLabels span{position:absolute;top:4px;transform:translateX(-50%);font-size:10px;color:#475569}
+      .loopRegion{position:absolute;top:0;bottom:0;background:rgba(37,99,235,.15);border:1px solid rgba(37,99,235,.35);border-radius:10px}
+      .playhead{position:absolute;top:0;bottom:0;width:2px;background:#ef4444}
+
+      /* Compact sliders */
+      .slider{width:100%}
+      .pan{width:100%}
+      .idx{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#f1f5f9;color:#0f172a;font-weight:600}
+      .row .btn{padding:6px 8px}
+      .row input[type="text"]{padding:6px 8px}
+    </style>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+
+    <script type="text/babel">
+      const { useState, useRef, useEffect } = React;
+
+      // ---------- Utils ----------
+      function getSupportedMimeType(){
+        const types=['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg','audio/mp4'];
+        for(const t of types){ if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t; }
+        return 'audio/webm';
+      }
+      async function blobToAudioBuffer(ctx, blob){ const ab = await blob.arrayBuffer(); return await ctx.decodeAudioData(ab.slice(0)); }
+      function trimAudioBuffer(ctx, buffer, trimStartSec){
+        const sr = buffer.sampleRate; const start = Math.max(0, Math.floor(trimStartSec*sr)); const len=Math.max(0, buffer.length-start);
+        const out = ctx.createBuffer(buffer.numberOfChannels, len, sr);
+        for(let ch=0; ch<buffer.numberOfChannels; ch++){ out.getChannelData(ch).set(buffer.getChannelData(ch).subarray(start, start+len)); }
+        return out;
+      }
+      const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+      const fmtTime = s=>{ if(!isFinite(s)||s<0) s=0; const m=Math.floor(s/60); const sec=s%60; return `${String(m).padStart(2,'0')}:${sec.toFixed(3).padStart(6,'0')}`; };
+
+      function FourTrackRecorder(){
+        const TRACK_COUNT = 8;
+
+        // ---------- State ----------
+        const [devices,setDevices]=useState([]);
+        const [selectedDevice,setSelectedDevice]=useState('');
+        const [micGranted,setMicGranted]=useState(false);
+        const [status,setStatus]=useState('Select input, then grant mic access.');
+
+        const [tempo,setTempo]=useState(100);
+        const [sigTop,setSigTop]=useState(4); const [sigBottom,setSigBottom]=useState(4);
+        const [countInBars,setCountInBars]=useState(1); const [clickEnabled,setClickEnabled]=useState(true);
+        const [clickVol,setClickVol]=useState(0.7); // NEW: metronome volume (0..1)
+        const clickVolRef=useRef(0.7);
+        useEffect(()=>{ clickVolRef.current = clickVol; }, [clickVol]);
+
+        const [latencyMs,setLatencyMs]=useState(0);
+
+        // Monitor
+        const [monitorEnabled,setMonitorEnabled]=useState(true);
+        const [monitorOnlyDuringRec,setMonitorOnlyDuringRec]=useState(true);
+        const [monitorGainVal,setMonitorGainVal]=useState(0.9);
+        const [monitorPanVal, setMonitorPanVal] = useState(0);
+
+        // Transport / loop
+        const [loopEnabled,setLoopEnabled]=useState(false);
+        const [loopStartSec,setLoopStartSec]=useState(0);
+        const [loopEndSec,setLoopEndSec]=useState(10);
+        const [nowSec,setNowSec]=useState(0);
+
+        const [tracks,setTracks]=useState(
+          Array.from({length:TRACK_COUNT},(_,i)=>({
+            name:`Track ${String(i+1).padStart(2,'0')}`,
+            clips:[], isRecording:false,
+            volume:0.9, pan:0, mute:false, solo:false, offsetMs:0,
+            // link stereo pairs: only meaningful on odd indexes (1→2, 3→4, ...)
+            linkNextStereo:false,
+            mediaRecorder:null
+          }))
+        );
+
+        // ---------- Refs ----------
+        const micStreamRef = useRef(null);
+        const audioCtxRef = useRef(null);
+        const currentSourcesRef = useRef([]); // [{source, trackIndex}]
+        const isClickingRef = useRef(false);
+        const transportRunningRef = useRef(false);
+        const rafRef = useRef(null);
+        const transportBaseCtxTimeRef = useRef(0);
+        const transportStartPosRef = useRef(0);
+        const loopTimerRef = useRef(null);
+
+        // export capture
+        const mixDestRef = useRef(null); const mixMediaRecorderRef = useRef(null); const mixChunksRef = useRef([]);
+
+        // monitor nodes
+        const monitorRef = useRef({ src:null, gain:null, pan:null, connected:false });
+
+        // ---------- Devices ----------
+        useEffect(()=>{
+          async function loadDevices(){ try{ const devs=await navigator.mediaDevices.enumerateDevices(); const ins=devs.filter(d=>d.kind==='audioinput'); setDevices(ins); if(ins.length>0 && !selectedDevice) setSelectedDevice(ins[0].deviceId);}catch(e){console.error(e);} }
+          loadDevices(); if(navigator.mediaDevices){ navigator.mediaDevices.ondevicechange = loadDevices; }
+        },[]);
+
+        // ---------- AudioContext ----------
+        function ensureAudioContext(){ if(!audioCtxRef.current){ audioCtxRef.current = new (window.AudioContext||window.webkitAudioContext)(); } if(audioCtxRef.current.state==='suspended'){ audioCtxRef.current.resume(); } return audioCtxRef.current; }
+
+        // ---------- Helpers ----------
+        function stopAllPlayback(){ currentSourcesRef.current.forEach(({source})=>{ try{ source.stop(); }catch{} }); currentSourcesRef.current=[]; transportRunningRef.current=false; stopClick(); stopTicker(); clearLoopTimer(); }
+        function currentAudibleSet(local){ const anySolo = local.some(t=>t.solo); return local.map(t=>({audible: anySolo ? t.solo : !t.mute, volume:t.volume, pan:t.pan, offsetMs:t.offsetMs})); }
+        function clearLoopTimer(){ if(loopTimerRef.current){ clearTimeout(loopTimerRef.current); loopTimerRef.current=null; } }
+        const projectLenSec = ()=>{ let m=0; for(const t of tracks){ const d=t.clips[0]?.buffer?.duration||0; if(d>m) m=d; } return Math.max(m, loopEndSec||0, 10); };
+
+        // ---------- Metronome ----------
+        function startClickAt(ctx, when){ if(!clickEnabled) return; const spb=60/tempo; const bpb=sigTop; isClickingRef.current=true; const windowSec=1.0; let next=when, beat=0; (function schedule(){ if(!isClickingRef.current) return; const now=ctx.currentTime; while(next < now+windowSec){ const osc=ctx.createOscillator(); const g=ctx.createGain(); const down=(beat%bpb)===0; const base = down?0.4:0.22; g.gain.value = base * clamp(clickVolRef.current, 0, 1); osc.frequency.value=down?1200:850; osc.connect(g).connect(ctx.destination); osc.start(next); osc.stop(next+0.03); next+=spb; beat++; } setTimeout(schedule,100); })(); }
+        function stopClick(){ isClickingRef.current=false; }
+
+        // ---------- Mic ----------
+        async function requestMicrophone(){ try{ const constraints={ audio: selectedDevice? { deviceId:{exact:selectedDevice}, echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:2 } : true}; const stream=await navigator.mediaDevices.getUserMedia(constraints); micStreamRef.current=stream; setMicGranted(true); setStatus('🎤 Microphone ready.'); ensureAudioContext(); setupMonitorNodes(); updateMonitorRouting(); }catch(e){ console.error(e); micStreamRef.current=null; setMicGranted(false); setStatus('❌ Could not access microphone.'); } }
+
+        // ---------- Monitor ----------
+        function setupMonitorNodes(){ const ctx=ensureAudioContext(); if(!micStreamRef.current) return; if(!monitorRef.current.src){ const m=monitorRef.current; m.src=ctx.createMediaStreamSource(micStreamRef.current); m.gain=ctx.createGain(); m.gain.gain.value=monitorGainVal; m.pan=(ctx.createStereoPanner)?ctx.createStereoPanner():null; if(m.pan) m.pan.pan.value=monitorPanVal; } }
+        function connectMonitor(){ const ctx=ensureAudioContext(); const m=monitorRef.current; if(!m.src || m.connected) return; if(m.pan){ m.src.connect(m.gain).connect(m.pan).connect(ctx.destination); } else { m.src.connect(m.gain).connect(ctx.destination); } m.connected=true; }
+        function disconnectMonitor(){ const m=monitorRef.current; if(!m.connected) return; try{ if(m.pan) m.pan.disconnect(); m.gain.disconnect(); }catch{} m.connected=false; }
+        function updateMonitorRouting(){ if(!monitorEnabled){ disconnectMonitor(); } else if(monitorOnlyDuringRec){ const anyRec = tracks.some(t=>t.isRecording); if(anyRec) connectMonitor(); else disconnectMonitor(); } else { connectMonitor(); } if(monitorRef.current.gain) monitorRef.current.gain.gain.value=monitorGainVal; if(monitorRef.current.pan) monitorRef.current.pan.pan.value=monitorPanVal; }
+        useEffect(()=>{ updateMonitorRouting(); }, [monitorEnabled, monitorOnlyDuringRec, monitorGainVal, monitorPanVal, tracks]);
+
+        // ---------- Scheduling ----------
+        function schedulePlayback({ freshStart=true, excludeIndex=null, startPosSec=0, durationSec=null }={}){
+          const ctx=ensureAudioContext(); if(freshStart){ stopAllPlayback(); } else if(transportRunningRef.current){ return; }
+          const audible=currentAudibleSet(tracks); const startAt=ctx.currentTime+0.05; currentSourcesRef.current=[];
+          tracks.forEach((t, ti)=>{
+            if(excludeIndex!==null && ti===excludeIndex) return; const clip=t.clips[0]; if(!clip || !clip.buffer) return;
+            const source=ctx.createBufferSource(); source.buffer=clip.buffer; const gain=ctx.createGain(); const panner=(ctx.createStereoPanner)?ctx.createStereoPanner():null; const a=audible[ti]; gain.gain.value=a.audible? a.volume:0; if(panner) panner.pan.value=a.pan;
+            source.connect(gain); if(panner){ gain.connect(panner); panner.connect(ctx.destination); if(mixDestRef.current) panner.connect(mixDestRef.current); } else { gain.connect(ctx.destination); if(mixDestRef.current) gain.connect(mixDestRef.current); }
+            const totalOffset = ((t.offsetMs||0)+(latencyMs||0))/1000; // + later, - earlier
+            const when = startAt + Math.max(0, totalOffset);
+            const bufferOffset = Math.max(0, startPosSec + Math.max(0, -totalOffset));
+            try{ if(durationSec){ source.start(when, bufferOffset, Math.max(0.001, durationSec)); } else { source.start(when, bufferOffset); } }catch(e){ console.warn('source.start failed', e); }
+            currentSourcesRef.current.push({ source, trackIndex:ti });
+          });
+          transportRunningRef.current=true; startTicker(startPosSec);
+          if(loopEnabled && durationSec){ clearLoopTimer(); const ms = (startAt - ctx.currentTime + durationSec) * 1000; loopTimerRef.current = setTimeout(()=>{ if(!transportRunningRef.current) return; schedulePlayback({ freshStart:true, startPosSec, durationSec }); }, ms); }
+        }
+
+        // ---------- Record / Overdub ----------
+        async function toggleRecord(i){ if(!micGranted){ setStatus('Microphone not granted.'); return; } const t=tracks[i]; const ctx=ensureAudioContext(); if(!t.isRecording){ await ctx.resume(); const spb=60/tempo; const countInSeconds=Math.max(0,countInBars)*sigTop*spb; if(countInSeconds>0){ const startAt=ctx.currentTime+0.02; startClickAt(ctx,startAt); setStatus('🫳 Count‑in…'); setTimeout(()=>{ const startPos = loopEnabled? loopStartSec: 0; const dur = loopEnabled? Math.max(0.001, loopEndSec - startPos): null; schedulePlayback({ freshStart:false, excludeIndex:i, startPosSec:startPos, durationSec:dur }); beginMediaRecorder(i); }, countInSeconds*1000); } else { const startPos = loopEnabled? loopStartSec: 0; const dur = loopEnabled? Math.max(0.001, loopEndSec - startPos): null; schedulePlayback({ freshStart:false, excludeIndex:i, startPosSec:startPos, durationSec:dur }); beginMediaRecorder(i); } } else { t.mediaRecorder?.stop(); } }
+
+        function beginMediaRecorder(i){ setupMonitorNodes(); updateMonitorRouting(); const mime=getSupportedMimeType(); const rec=new MediaRecorder(micStreamRef.current,{ mimeType:mime }); const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size>0) chunks.push(e.data); }; rec.onstop=async()=>{ disconnectMonitor(); const blob=new Blob(chunks,{type:rec.mimeType}); const url=URL.createObjectURL(blob); const ctx=ensureAudioContext(); setStatus('🔎 Decoding…'); let buffer=await blobToAudioBuffer(ctx, blob); const est=(ctx.baseLatency||0)+(ctx.outputLatency||0)+(latencyMs||0)/1000; if(est>0) buffer=trimAudioBuffer(ctx, buffer, est); const clip={ url, blob, buffer }; setTracks(prev=>{ const copy=[...prev]; copy[i]={...copy[i],clips:[...copy[i].clips, clip], isRecording:false, mediaRecorder:null}; return copy; }); setStatus(`💾 Saved clip on Track ${i+1}`); };
+          setTracks(prev=>{ const copy=[...prev]; copy[i]={...copy[i],isRecording:true,mediaRecorder:rec}; return copy; }); rec.start(); setStatus(`⏺ Recording Track ${i+1}…`); }
+
+        // ---------- Transport ----------
+        function play(){ if(tracks.every(t=>!t.clips?.length)){ setStatus('Nothing to play yet.'); return; } const ctx=ensureAudioContext(); const startAt=ctx.currentTime+0.02; if(clickEnabled) startClickAt(ctx,startAt); const startPos = loopEnabled? loopStartSec: 0; const dur = loopEnabled? Math.max(0.001, loopEndSec - startPos): null; schedulePlayback({ freshStart:true, startPosSec:startPos, durationSec:dur }); setStatus('▶️ Playing…'); }
+        function stop(){ stopAllPlayback(); setStatus('■ Stopped.'); }
+        function startTicker(startPos){ const ctx=ensureAudioContext(); transportBaseCtxTimeRef.current = ctx.currentTime; transportStartPosRef.current = startPos||0; cancelAnimationFrame(rafRef.current); const tick=()=>{ const elapsed = (ensureAudioContext().currentTime - transportBaseCtxTimeRef.current) + transportStartPosRef.current; setNowSec(elapsed); rafRef.current = requestAnimationFrame(tick); }; rafRef.current = requestAnimationFrame(tick); }
+        function stopTicker(){ cancelAnimationFrame(rafRef.current); setNowSec(0); }
+
+        // ---------- Export ----------
+        async function startExport(){ const ctx=ensureAudioContext(); mixDestRef.current = ctx.createMediaStreamDestination(); const mime = getSupportedMimeType(); const mr=new MediaRecorder(mixDestRef.current.stream,{mimeType:mime}); mixMediaRecorderRef.current=mr; mixChunksRef.current=[]; mr.ondataavailable=e=>{ if(e.data&&e.data.size>0) mixChunksRef.current.push(e.data); }; mr.onstop=()=>{ const blob=new Blob(mixChunksRef.current,{type:mr.mimeType}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`mix.${blob.type.includes('ogg')?'ogg':'webm'}`; document.body.appendChild(a); a.click(); a.remove(); setStatus('📤 Mix exported.'); mixDestRef.current=null; }; play(); mr.start(); setStatus('🎚️ Exporting real time… Stop to finish.'); }
+        function finishExportIfAny(){ if(mixMediaRecorderRef.current && mixMediaRecorderRef.current.state!=='inactive'){ try{ mixMediaRecorderRef.current.stop(); }catch{} mixMediaRecorderRef.current=null; } }
+
+        // ---------- Track helpers & stereo link ----------
+        function partnerIndex(i){ return (i%2===0)? i+1 : i-1; } // 0↔1, 2↔3, etc (0-based)
+        function isLeft(i){ return i%2===0; }
+        function setTrack(i, patch){ setTracks(prev=>{ const copy=[...prev]; const t={...copy[i], ...patch}; copy[i]=t; // propagate if linked
+          if(isLeft(i) && t.linkNextStereo){ const j=i+1; if(copy[j]){ const mirror={ volume:t.volume, mute:t.mute, solo:t.solo, offsetMs:t.offsetMs }; copy[i].pan = -1; copy[j] = { ...copy[j], ...mirror, pan: 1 }; } }
+          if(!isLeft(i)){ const j=i-1; if(copy[j]?.linkNextStereo){ const L=copy[j]; copy[i] = { ...copy[i], volume:L.volume, mute:L.mute, solo:L.solo, offsetMs:L.offsetMs, pan:1 }; } }
+          return copy; }); }
+        function toggleLink(i){ if(!isLeft(i)) return; setTracks(prev=>{ const copy=[...prev]; const cur=copy[i].linkNextStereo; copy[i].linkNextStereo = !cur; const j=i+1; if(copy[j]){ if(!cur){ copy[i].pan = -1; copy[j].pan = 1; copy[j].volume = copy[i].volume; copy[j].mute = copy[i].mute; copy[j].solo = copy[i].solo; copy[j].offsetMs = copy[i].offsetMs; } } return copy; }); }
+        function deleteClip(i,ci){ setTracks(prev=>{ const copy=[...prev]; const t={...copy[i]}; t.clips=t.clips.filter((_,k)=>k!==ci); copy[i]=t; return copy; }); }
+
+        // decode any blobs missing buffers
+        useEffect(()=>{ async function decodeMissing(){ const ctx=audioCtxRef.current || new (window.AudioContext||window.webkitAudioContext)(); const next=tracks.map(t=>({...t})); let changed=false; for(let i=0;i<next.length;i++){ for(let ci=0;ci<next[i].clips.length;ci++){ const c=next[i].clips[ci]; if(c.blob && !c.buffer){ try{ c.buffer=await blobToAudioBuffer(ctx, c.blob); changed=true; }catch(e){ console.warn('Could not decode existing clip', e); } } } } if(changed) setTracks(next); } if(tracks.some(t=>t.clips.some(c=>c.blob && !c.buffer))){ decodeMissing(); } }, [tracks]);
+
+        // ---------- Render ----------
+        const maxSec = projectLenSec();
+        const tickSeconds = Math.min(60, Math.ceil(maxSec)); // up to 60 labels
+        const labels = []; for(let s=0; s<=tickSeconds; s+=5){ labels.push(s); }
+
+        return (
+          <div>
+            <h1>🎚️ Eight‑Track Recorder</h1>
+            <p className="sub">8 tracks • sample‑accurate playback • overdub monitoring • stereo pair linking • transport with loop • minimal timeline.</p>
+
+            {/* Transport strip */}
+            <div className="card">
+              <div className="bar" style={{justifyContent:'space-between'}}>
+                <div className="bar">
+                  <button className="btn green" onClick={play}>▶︎ Play</button>
+                  <button className="btn gray" onClick={()=>{ stop(); finishExportIfAny(); }}>■ Stop</button>
+                  <button className="btn" onClick={startExport} disabled={tracks.every(t=>!t.clips?.length)}>📤 Quick Mix</button>
+                  <span className="pill">Time</span>
+                  <span className="mono" style={{fontSize:'14px'}}>{fmtTime(nowSec)}</span>
+                </div>
+                <div className="bar">
+                  <label className="bar" style={{gap:6}}>
+                    <input type="checkbox" checked={loopEnabled} onChange={e=>setLoopEnabled(e.target.checked)} /> Loop
+                  </label>
+                  <label>Start (s)</label>
+                  <input type="number" value={loopStartSec} min={0} step={0.001} onChange={e=>setLoopStartSec(clamp(+e.target.value||0,0,9999))} style={{width:100}}/>
+                  <label>End (s)</label>
+                  <input type="number" value={loopEndSec} min={0} step={0.001} onChange={e=>setLoopEndSec(clamp(+e.target.value||0,0,9999))} style={{width:100}}/>
+                </div>
+              </div>
+              <div className="hr"></div>
+              {/* Timeline ruler */}
+              <div className="timeline">
+                <div className="ticks"></div>
+                <div className="tickLabels">
+                  {labels.map(s=> (
+                    <span key={s} style={{left: `${(s/Math.max(1,maxSec))*100}%`}}>{s}s</span>
+                  ))}
+                </div>
+                {loopEnabled && (
+                  <div className="loopRegion" style={{left:`${(loopStartSec/Math.max(1,maxSec))*100}%`, width:`${(Math.max(loopEndSec-loopStartSec,0)/Math.max(1,maxSec))*100}%`}}></div>
+                )}
+                <div className="playhead" style={{left:`${(clamp(nowSec,0,maxSec)/Math.max(1,maxSec))*100}%`}}></div>
+              </div>
+            </div>
+
+            {/* Setup */}
+            <div className="card">
+              <div className="bar">
+                <label className="nowrap">Input:</label>
+                <select value={selectedDevice} onChange={e=>setSelectedDevice(e.target.value)}>
+                  {devices.map(d=>(<option key={d.deviceId} value={d.deviceId}>{d.label||'Unknown device'}</option>))}
+                </select>
+                <button className="btn primary" onClick={requestMicrophone}>Grant mic access</button>
+                <span className="pill">Click</span>
+                <label>Tempo</label><input type="number" min="20" max="300" value={tempo} onChange={e=>setTempo(+e.target.value||60)} style={{width:80}}/>
+                <label>Sig</label><input type="number" min="1" max="12" value={sigTop} onChange={e=>setSigTop(+e.target.value||4)} style={{width:56}}/>/<input type="number" min="1" max="16" value={sigBottom} onChange={e=>setSigBottom(+e.target.value||4)} style={{width:56}}/>
+                <label>Count‑in</label><input type="number" min="0" max="8" value={countInBars} onChange={e=>setCountInBars(Math.max(0,+e.target.value||0))} style={{width:70}}/>
+                <label className="bar" style={{gap:6}}><input type="checkbox" checked={clickEnabled} onChange={e=>setClickEnabled(e.target.checked)} />Enable</label>
+                <label>Click Vol</label><input type="range" min="0" max="1" step="0.01" value={clickVol} onChange={e=>setClickVol(+e.target.value)} style={{width:160}}/>
+                <label>Latency (ms)</label><input type="number" value={latencyMs} onChange={e=>setLatencyMs(+e.target.value||0)} style={{width:88}}/>
+                <span className="mini">{status}</span>
+              </div>
+            </div>
+
+            {/* Monitor */}
+            <div className="card">
+              <div className="bar">
+                <span className="pill">Input monitor</span>
+                <label><input type="checkbox" checked={monitorEnabled} onChange={e=>setMonitorEnabled(e.target.checked)}/> Enabled</label>
+                <label><input type="checkbox" checked={monitorOnlyDuringRec} onChange={e=>setMonitorOnlyDuringRec(e.target.checked)}/> Only while rec</label>
+                <label>Level</label><input className="slider" type="range" min="0" max="1" step="0.01" value={monitorGainVal} onChange={e=>setMonitorGainVal(+e.target.value)} style={{width:160}}/>
+                <label>Pan</label><input className="pan" type="range" min="-1" max="1" step="0.01" value={monitorPanVal} onChange={e=>setMonitorPanVal(+e.target.value)} style={{width:160}}/>
+              </div>
+            </div>
+
+            {/* Tracks */}
+            {tracks.map((t,i)=>{
+              const rightLinked = (!(i%2===0)) && tracks[i-1]?.linkNextStereo;
+              const leftLinked  = (i%2===0) && t.linkNextStereo;
+              return (
+                <div key={i} className="card">
+                  <div className="row">
+                    <div className="idx">{i+1}</div>
+
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <input type="text" value={t.name} onChange={e=>setTrack(i,{name:e.target.value})} style={{minWidth:120,maxWidth:160}}/>
+                      {(i%2===0) && (
+                        <button className={`btn ${leftLinked?'primary':''}`} title="Link this track to the next as a stereo pair" onClick={()=>toggleLink(i)}>{leftLinked? 'Linked ▶' : 'Link ▶'}</button>
+                      )}
+                      {rightLinked && <span className="pairBadge">◀ Linked (R)</span>}
+                    </div>
+
+                    <div className="bar" style={{gap:6}}>
+                      <button className={`btn ${t.solo?'primary':''}`} onClick={()=>setTrack(i,{solo:!t.solo})}>Solo</button>
+                      <button className={`btn ${t.mute?'red':''}`} onClick={()=>setTrack(i,{mute:!t.mute})}>Mute</button>
+                    </div>
+
+                    <div className="bar" style={{gap:6}}>
+                      <label className="mini">Vol</label>
+                      <input className="slider" type="range" min="0" max="1" step="0.01" value={t.volume} onChange={e=>setTrack(i,{volume:+e.target.value})}/>
+                      <label className="mini">Pan</label>
+                      <input className="pan" type="range" min="-1" max="1" step="0.01" value={t.pan} disabled={tracks[i]?.linkNextStereo || rightLinked} onChange={e=>setTrack(i,{pan:+e.target.value})}/>
+                    </div>
+
+                    <div className="bar" style={{gap:6,justifyContent:'flex-end'}}>
+                      <label className="mini">Offset (ms)</label>
+                      <input type="number" value={t.offsetMs} onChange={e=>setTrack(i,{offsetMs:+e.target.value||0})} style={{width:90}}/>
+                    </div>
+
+                    <div className="mini" style={{textAlign:'center'}}>{t.clips?.length||0} clip{(t.clips?.length||0)===1?'':'s'}</div>
+
+                    <div style={{display:'flex',justifyContent:'flex-end'}}>
+                      <button className={`btn ${t.isRecording?'red':''}`} onClick={()=>toggleRecord(i)}>● Rec</button>
+                    </div>
+                  </div>
+
+                  <div className="clips">
+                    {t.clips.map((c,ci)=>(
+                      <div key={ci} className="bar" style={{justifyContent:'space-between'}}>
+                        <audio src={c.url} controls preload="metadata" style={{flex:1}}></audio>
+                        <button className="btn" onClick={()=>deleteClip(i,ci)}>Delete</button>
+                      </div>
+                    ))}
+                    {!t.clips.length && <div className="mini">No clips yet.</div>}
+                  </div>
+                </div>
+              );
+            })}
+
+            <p className="mini">Transport: time display updates live; loop uses precise source <code>start(when, offset, duration)</code>. Stereo pairs: link L→R to couple vol/mute/solo/offset and hard-pan L/R. Metronome volume is adjustable via the new <em>Click Vol</em> slider.</p>
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<FourTrackRecorder/>);
+    </script>
   </body>
 </html>
