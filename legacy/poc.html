@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Four‑Track Recorder — Sample‑Accurate Sync</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        :root {
+            --bg: #f6f7fb;
+            --card: #fff;
+            --ink: #0f172a;
+            --muted: #64748b;
+            --brand: #2563eb;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            background: var(--bg);
+            color: var(--ink)
+        }
+
+        #root {
+            max-width: 1000px;
+            margin: 24px auto;
+            padding: 16px
+        }
+
+        h1 {
+            margin: 0 0 6px 0
+        }
+
+        .sub {
+            color: var(--muted);
+            margin: 0 0 16px 0
+        }
+
+        .bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center
+        }
+
+        .btn {
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            border: 0;
+            background: #e5e7eb
+        }
+
+            .btn.primary {
+                background: var(--brand);
+                color: white
+            }
+
+            .btn.green {
+                background: #10b981;
+                color: white
+            }
+
+            .btn.gray {
+                background: #e5e7eb
+            }
+
+            .btn.red {
+                background: #ef4444;
+                color: white
+            }
+
+            .btn:disabled {
+                opacity: .5;
+                cursor: not-allowed
+            }
+
+        select, input[type="number"], input[type="text"] {
+            padding: 8px;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            background: #fff
+        }
+
+        .card {
+            background: var(--card);
+            padding: 12px;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.08);
+            margin-bottom: 12px
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 220px auto 1fr auto;
+            gap: 10px;
+            align-items: center
+        }
+
+        .mix {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap
+        }
+
+        .mini {
+            font-size: 12px;
+            color: var(--muted)
+        }
+
+        .clips {
+            display: grid;
+            gap: 8px;
+            margin-top: 6px
+        }
+
+        .hr {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 10px 0
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px
+        }
+
+        .nowrap {
+            white-space: nowrap
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useRef, useEffect } = React;
+
+      function getSupportedMimeType(){
+        const types=[
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/ogg;codecs=opus',
+          'audio/ogg',
+          'audio/mp4'
+        ];
+        for(const t of types){
+          if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t;
+        }
+        return 'audio/webm';
+      }
+
+      async function blobToArrayBuffer(blob){
+        return await blob.arrayBuffer();
+      }
+
+      async function blobToAudioBuffer(ctx, blob){
+        try{
+          const ab = await blobToArrayBuffer(blob);
+          return await ctx.decodeAudioData(ab.slice(0));
+        }catch(e){
+          console.error('decodeAudioData failed', e);
+          throw e;
+        }
+      }
+
+      function trimAudioBuffer(ctx, buffer, trimStartSec){
+        const sampleRate = buffer.sampleRate;
+        const trimStart = Math.max(0, Math.floor(trimStartSec * sampleRate));
+        const length = Math.max(0, buffer.length - trimStart);
+        const out = ctx.createBuffer(buffer.numberOfChannels, length, sampleRate);
+        for(let ch=0; ch<buffer.numberOfChannels; ch++){
+          const src = buffer.getChannelData(ch);
+          const dst = out.getChannelData(ch);
+          dst.set(src.subarray(trimStart, trimStart + length));
+        }
+        return out;
+      }
+
+      function FourTrackRecorder(){
+        const TRACK_COUNT = 4;
+
+        // ---------- State ----------
+        const [devices,setDevices]=useState([]);
+        const [selectedDevice,setSelectedDevice]=useState('');
+        const [micGranted,setMicGranted]=useState(false);
+        const [status,setStatus]=useState('Select input, then grant mic access.');
+
+        const [tempo,setTempo]=useState(100);
+        const [sigTop,setSigTop]=useState(4);
+        const [sigBottom,setSigBottom]=useState(4);
+        const [countInBars,setCountInBars]=useState(1);
+        const [clickEnabled,setClickEnabled]=useState(true);
+        const [latencyMs,setLatencyMs]=useState(0); // manual compensation (global)
+
+        const [tracks,setTracks]=useState(
+          Array.from({length:TRACK_COUNT},(_,i)=>({
+            name:`Track ${i+1}`,
+            clips:[],          // { url, blob, buffer? }
+            isRecording:false,
+            volume:0.9,
+            pan:0,
+            mute:false,
+            solo:false,
+            offsetMs:0,       // per-track nudge (earlier negative / later positive)
+            mediaRecorder:null
+          }))
+        );
+
+        // ---------- Refs ----------
+        const micStreamRef = useRef(null);
+        const audioCtxRef = useRef(null);
+
+        // bufferSource playback management
+        const currentSourcesRef = useRef([]); // [{source, trackIndex}]
+
+        const isClickingRef = useRef(false);
+        const transportRunningRef = useRef(false);
+
+        // export capture
+        const mixDestRef = useRef(null);
+        const mixMediaRecorderRef = useRef(null);
+        const mixChunksRef = useRef([]);
+
+        // ---------- Device discovery ----------
+        useEffect(()=>{
+          async function loadDevices(){
+            try{
+              const devs = await navigator.mediaDevices.enumerateDevices();
+              const ins = devs.filter(d=>d.kind==='audioinput');
+              setDevices(ins);
+              if(ins.length>0 && !selectedDevice) setSelectedDevice(ins[0].deviceId);
+            }catch(e){ console.error(e); }
+          }
+          loadDevices();
+          if(navigator.mediaDevices){
+            navigator.mediaDevices.ondevicechange = loadDevices;
+          }
+        },[]);
+
+        // ---------- AudioContext ----------
+        function ensureAudioContext(){
+          if(!audioCtxRef.current){
+            audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          if(audioCtxRef.current.state==='suspended'){
+            audioCtxRef.current.resume();
+          }
+          return audioCtxRef.current;
+        }
+
+        // ---------- Helpers ----------
+        function stopAllPlayback(){
+          currentSourcesRef.current.forEach(({source})=>{ try{ source.stop(); }catch{} });
+          currentSourcesRef.current = [];
+          transportRunningRef.current = false;
+          stopClick();
+        }
+
+        function currentAudibleSet(localTracks){
+          const anySolo = localTracks.some(t=>t.solo);
+          return localTracks.map(t=>{
+            const audible = anySolo ? t.solo : !t.mute;
+            return { audible, volume:t.volume, pan:t.pan, offsetMs:t.offsetMs };
+          });
+        }
+
+        // ---------- Metronome ----------
+        function startClickAt(ctx, when){
+          if(!clickEnabled) return;
+          const secPerBeat = 60/tempo;
+          const beatsPerBar = sigTop;
+          isClickingRef.current = true;
+          const scheduleWindow = 1.0; // seconds
+          let nextTime = when;
+          let beatIdx = 0;
+          function schedule(){
+            if(!isClickingRef.current) return;
+            const now = ctx.currentTime;
+            while(nextTime < now + scheduleWindow){
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              const isDown = (beatIdx % beatsPerBar)===0;
+              gain.gain.value = isDown ? 0.4 : 0.22;
+              osc.frequency.value = isDown ? 1200 : 850;
+              osc.connect(gain).connect(ctx.destination);
+              osc.start(nextTime);
+              osc.stop(nextTime + 0.03);
+              nextTime += secPerBeat;
+              beatIdx++;
+            }
+            setTimeout(schedule, 100);
+          }
+          schedule();
+        }
+        function stopClick(){ isClickingRef.current = false; }
+
+        // ---------- Mic ----------
+        async function requestMicrophone(){
+          try{
+            const constraints = {
+              audio: selectedDevice ? {
+                deviceId: { exact: selectedDevice },
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                channelCount: 2
+              } : true
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            micStreamRef.current = stream;
+            setMicGranted(true);
+            setStatus('🎤 Microphone ready.');
+            ensureAudioContext();
+          }catch(e){
+            console.error(e);
+            micStreamRef.current = null;
+            setMicGranted(false);
+            setStatus('❌ Could not access microphone.');
+          }
+        }
+
+        // ---------- Scheduling (sample‑accurate) ----------
+        function schedulePlayback({ freshStart=true, excludeIndex=null }={}){
+          const ctx = ensureAudioContext();
+
+          if(freshStart){
+            stopAllPlayback();
+          } else if(transportRunningRef.current){
+            return; // keep rolling for overdub
+          }
+
+          const audible = currentAudibleSet(tracks);
+          const startAt = ctx.currentTime + 0.05; // tiny safety lead‑in
+
+          tracks.forEach((t, ti)=>{
+            if(excludeIndex!==null && ti===excludeIndex) return;
+            const clip = t.clips[0];
+            if(!clip || !clip.buffer) return; // nothing to play yet or not decoded
+
+            const source = ctx.createBufferSource();
+            source.buffer = clip.buffer;
+
+            const gain = ctx.createGain();
+            const panner = (ctx.createStereoPanner) ? ctx.createStereoPanner() : null;
+            gain.gain.value = (audible[ti].audible ? audible[ti].volume : 0.0);
+            if(panner) panner.pan.value = audible[ti].pan;
+
+            // chain: source -> gain -> [panner] -> dest (+ capture)
+            if(panner){
+              source.connect(gain).connect(panner).connect(ctx.destination);
+              if(mixDestRef.current) gain.connect(panner).connect(mixDestRef.current);
+            } else {
+              source.connect(gain).connect(ctx.destination);
+              if(mixDestRef.current) gain.connect(mixDestRef.current);
+            }
+
+            // apply per‑track nudge and global latency compensation to playback
+            const trackOffsetSec = (t.offsetMs||0)/1000;
+            const globalOffsetSec = (latencyMs||0)/1000;
+            const totalOffset = trackOffsetSec + globalOffsetSec; // + later, − earlier
+
+            const when = startAt + Math.max(0, totalOffset);
+            const bufferOffset = Math.max(0, -totalOffset);
+
+            try{ source.start(when, bufferOffset); }catch(e){ console.warn('source.start failed', e); }
+            currentSourcesRef.current.push({ source, trackIndex: ti });
+          });
+
+          transportRunningRef.current = true;
+        }
+
+        // ---------- Record / Overdub ----------
+        async function toggleRecord(i){
+          if(!micGranted){ setStatus('Microphone not granted.'); return; }
+          const t = tracks[i];
+          const ctx = ensureAudioContext();
+
+          if(!t.isRecording){
+            await ctx.resume();
+
+            // count‑in then schedule (do not restart if already playing)
+            const secPerBeat = 60/tempo;
+            const countInSeconds = Math.max(0, countInBars) * sigTop * secPerBeat;
+            if(countInSeconds>0){
+              const startAt = ctx.currentTime + 0.02;
+              startClickAt(ctx, startAt);
+              setStatus('🫳 Count‑in…');
+              setTimeout(()=>{
+                schedulePlayback({ freshStart:false, excludeIndex:i });
+                beginMediaRecorder(i);
+              }, countInSeconds*1000);
+            } else {
+              schedulePlayback({ freshStart:false, excludeIndex:i });
+              beginMediaRecorder(i);
+            }
+          } else {
+            t.mediaRecorder?.stop();
+          }
+        }
+
+        function beginMediaRecorder(i){
+          const mime = getSupportedMimeType();
+          const rec = new MediaRecorder(micStreamRef.current, { mimeType: mime });
+          const chunks=[];
+          rec.ondataavailable = e=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
+          rec.onstop = async ()=>{
+            const blob = new Blob(chunks, { type: rec.mimeType });
+            const url = URL.createObjectURL(blob);
+            const ctx = ensureAudioContext();
+
+            setStatus('🔎 Decoding…');
+            let buffer = await blobToAudioBuffer(ctx, blob);
+
+            // Auto compensate using AudioContext latencies + manual tweak
+            const est = (ctx.baseLatency||0) + (ctx.outputLatency||0) + (latencyMs||0)/1000;
+            if(est>0){
+              buffer = trimAudioBuffer(ctx, buffer, est);
+            }
+
+            const clip = { url, blob, buffer };
+            setTracks(prev=>{
+              const copy=[...prev];
+              copy[i] = { ...copy[i], clips:[...copy[i].clips, clip], isRecording:false, mediaRecorder:null };
+              return copy;
+            });
+            setStatus(`💾 Saved clip on Track ${i+1}`);
+          };
+          setTracks(prev=>{
+            const copy=[...prev];
+            copy[i] = { ...copy[i], isRecording:true, mediaRecorder:rec };
+            return copy;
+          });
+          rec.start();
+          setStatus(`⏺ Recording Track ${i+1}…`);
+        }
+
+        // ---------- Transport ----------
+        function playFromStart(){
+          if(tracks.every(t=>!t.clips?.length)){ setStatus('Nothing to play yet.'); return; }
+          const ctx = ensureAudioContext();
+          const startAt = ctx.currentTime + 0.02;
+          if(clickEnabled) startClickAt(ctx, startAt);
+          schedulePlayback({ freshStart:true });
+          setStatus('▶️ Playing all tracks…');
+        }
+        function stopPlayback(){ stopAllPlayback(); setStatus('■ Stopped.'); }
+
+        // ---------- Export (real‑time capture of buffer mix) ----------
+        async function startExport(){
+          const ctx = ensureAudioContext();
+          // set up capture destination
+          mixDestRef.current = ctx.createMediaStreamDestination();
+          const mime = getSupportedMimeType();
+          const mr = new MediaRecorder(mixDestRef.current.stream, { mimeType: mime });
+          mixMediaRecorderRef.current = mr;
+          mixChunksRef.current = [];
+          mr.ondataavailable = e=>{ if(e.data && e.data.size>0) mixChunksRef.current.push(e.data); };
+          mr.onstop = ()=>{
+            const blob = new Blob(mixChunksRef.current, { type: mr.mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `four-track-mix.${blob.type.includes('ogg')?'ogg':'webm'}`;
+            document.body.appendChild(a); a.click(); a.remove();
+            setStatus('📤 Mix exported.');
+            mixDestRef.current = null;
+          };
+          playFromStart(); // schedules with capture connections
+          mr.start();
+          setStatus('🎚️ Exporting in real time… Stop to finish.');
+        }
+        function finishExportIfAny(){
+          if(mixMediaRecorderRef.current && mixMediaRecorderRef.current.state!=='inactive'){
+            try{ mixMediaRecorderRef.current.stop(); }catch{}
+            mixMediaRecorderRef.current = null;
+          }
+        }
+
+        // ---------- UI handlers ----------
+        function setTrack(i, patch){
+          setTracks(prev=>{
+            const copy=[...prev];
+            copy[i] = { ...copy[i], ...patch };
+            return copy;
+          });
+        }
+        function deleteClip(i, ci){
+          setTracks(prev=>{
+            const copy=[...prev];
+            const t = { ...copy[i] };
+            t.clips = t.clips.filter((_,k)=>k!==ci);
+            copy[i]=t; return copy;
+          });
+        }
+
+        // decode any blobs that are missing buffers (e.g., if you later load saved clips)
+        useEffect(()=>{
+          async function decodeMissing(){
+            const ctx = audioCtxRef.current || new (window.AudioContext || window.webkitAudioContext)();
+            let changed = false; const next = tracks.map(t=>({ ...t }));
+            for(let i=0;i<next.length;i++){
+              for(let ci=0;ci<next[i].clips.length;ci++){
+                const c = next[i].clips[ci];
+                if(c.blob && !c.buffer){
+                  try{
+                    c.buffer = await blobToAudioBuffer(ctx, c.blob);
+                    changed = true;
+                  }catch(e){ console.warn('Could not decode existing clip', e); }
+                }
+              }
+            }
+            if(changed){ setTracks(next); }
+          }
+          // only run if there are clips without buffers
+          if(tracks.some(t=>t.clips.some(c=>c.blob && !c.buffer))){ decodeMissing(); }
+        }, [tracks]);
+
+        const anySolo = tracks.some(t=>t.solo);
+
+        return (
+          <div>
+            <h1>🎛️ Four‑Track Recorder</h1>
+            <p className="sub">Sample‑accurate band playback using Web Audio buffers. Overdubs snap in‑time, with manual nudge if needed.</p>
+
+            <div className="card">
+              <div className="bar">
+                <label className="nowrap">Input:</label>
+                <select value={selectedDevice} onChange={e=>setSelectedDevice(e.target.value)}>
+                  {devices.map(d=>(<option key={d.deviceId} value={d.deviceId}>{d.label||'Unknown device'}</option>))}
+                </select>
+                <button className="btn primary" onClick={requestMicrophone}>Grant mic access</button>
+
+                <span className="hr" style={{flexBasis:'100%'}}></span>
+
+                <div className="grid-2" style={{width:'min(560px, 100%)'}}>
+                  <div className="bar">
+                    <span className="btn" style={{pointerEvents:'none'}}>Click</span>
+                    <label>Tempo</label>
+                    <input type="number" min="20" max="300" value={tempo} onChange={e=>setTempo(+e.target.value||60)} style={{width:88}} />
+                    <label>Time Sig</label>
+                    <input type="number" min="1" max="12" value={sigTop} onChange={e=>setSigTop(+e.target.value||4)} style={{width:64}} />
+                    <span>/</span>
+                    <input type="number" min="1" max="16" value={sigBottom} onChange={e=>setSigBottom(+e.target.value||4)} style={{width:64}} />
+                    <label>Count‑in bars</label>
+                    <input type="number" min="0" max="8" value={countInBars} onChange={e=>setCountInBars(Math.max(0, +e.target.value||0))} style={{width:64}} />
+                    <label className="bar" style={{gap:6}}>
+                      <input type="checkbox" checked={clickEnabled} onChange={e=>setClickEnabled(e.target.checked)} />
+                      Enable click
+                    </label>
+                  </div>
+                  <div className="bar">
+                    <label>Latency comp (ms)</label>
+                    <input type="number" value={latencyMs} onChange={e=>setLatencyMs(+e.target.value||0)} style={{width:100}} />
+                    <button className="btn green" onClick={playFromStart}>▶︎ Play From Start</button>
+                    <button className="btn gray" onClick={()=>{ stopPlayback(); finishExportIfAny(); }}>■ Stop</button>
+                    <button className="btn" onClick={startExport} disabled={tracks.every(t=>!t.clips?.length)}>📤 Quick Mix (real‑time)</button>
+                    <span className="mini">{status}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {tracks.map((t,i)=>(
+              <div key={i} className="card">
+                <div className="row" style={{alignItems:'center'}}>
+                  <div className="mix">
+                    <input
+                      type="text"
+                      value={t.name}
+                      onChange={e=>setTrack(i,{name:e.target.value})}
+                      style={{minWidth:160,maxWidth:200}}
+                    />
+                    <button className={`btn ${t.solo?'primary':''}`} onClick={()=>setTrack(i,{solo:!t.solo})}>Solo</button>
+                    <button className={`btn ${t.mute?'red':''}`} onClick={()=>setTrack(i,{mute:!t.mute})}>Mute</button>
+                  </div>
+
+                  <div className="mix">
+                    <label className="mini">Vol</label>
+                    <input type="range" min="0" max="1" step="0.01" value={t.volume} onChange={e=>setTrack(i,{volume:+e.target.value})} style={{width:160}}/>
+                    <label className="mini">Pan</label>
+                    <input type="range" min="-1" max="1" step="0.01" value={t.pan} onChange={e=>setTrack(i,{pan:+e.target.value})} style={{width:160}}/>
+                  </div>
+
+                  <div className="mix">
+                    <label className="mini">Offset (ms)</label>
+                    <input type="number" value={t.offsetMs} onChange={e=>setTrack(i,{offsetMs:+e.target.value||0})} style={{width:90}}/>
+                    <span className="mini">{t.clips?.length||0} clip{(t.clips?.length||0)===1?'':'s'}</span>
+                  </div>
+
+                  <div className="mix">
+                    <button className={`btn ${t.isRecording?'red':''}`} onClick={()=>toggleRecord(i)}>● Rec</button>
+                  </div>
+                </div>
+
+                <div className="hr"></div>
+
+                <div className="clips">
+                  {t.clips.map((c,ci)=>(
+                    <div key={ci} className="bar" style={{justifyContent:'space-between'}}>
+                      <audio src={c.url} controls preload="metadata" style={{flex:1}}></audio>
+                      <button className="btn" onClick={()=>deleteClip(i,ci)}>Delete</button>
+                    </div>
+                  ))}
+                  {!t.clips.length && <div className="mini">No clips yet.</div>}
+                </div>
+              </div>
+            ))}
+
+            <p className="mini">Sync fix: playback uses <code>AudioBufferSourceNode.start(startAt, bufferOffset)</code> for sample‑accurate alignment. Use per‑track <em>Offset</em> or global <em>Latency comp</em> to nudge.</p>
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<FourTrackRecorder/>);
+    </script>
+</body>
+</html>

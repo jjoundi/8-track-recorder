@@ -1,0 +1,20 @@
+{
+  "name": "8-track-recorder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host --https",
+    "build": "vite build",
+    "preview": "vite preview --host --https",
+    "lint": "echo \"(add eslint later)\""
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "@vitejs/plugin-react": "^4.3.1"
+  }
+}
