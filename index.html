@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Four‑Track Recorder — 8‑Track + Transport + Timeline</title>
+    <title>Four‑Track Recorder — 8‑Track + Transport + Timeline + Auto Latency</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -72,6 +72,29 @@
       const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
       const fmtTime = s=>{ if(!isFinite(s)||s<0) s=0; const m=Math.floor(s/60); const sec=s%60; return `${String(m).padStart(2,'0')}:${sec.toFixed(3).padStart(6,'0')}`; };
 
+      // Peak/energy utilities for latency detection
+      function movingEnergy(data, win){
+        const n=data.length; const out=new Float32Array(Math.max(0,n-win));
+        let acc=0; for(let i=0;i<win;i++){ const v=data[i]; acc+=v*v; }
+        out[0]=acc;
+        for(let i=1;i<out.length;i++){
+          const enter=data[i+win-1]; const exit=data[i-1];
+          acc += enter*enter - exit*exit; out[i]=acc;
+        }
+        return out;
+      }
+      function findPeaksFromEnergy(energy, minDistance, thresholdFrac){
+        const peaks=[]; const n=energy.length; let lastIndex=-minDistance;
+        let maxE=0; for(let i=0;i<n;i++) if(energy[i]>maxE) maxE=energy[i];
+        const thr = maxE * (thresholdFrac||0.3);
+        for(let i=1;i<n-1;i++){
+          if(energy[i]>thr && energy[i]>energy[i-1] && energy[i]>energy[i+1]){
+            if(i - lastIndex >= minDistance){ peaks.push(i); lastIndex=i; }
+          }
+        }
+        return peaks;
+      }
+
       function FourTrackRecorder(){
         const TRACK_COUNT = 8;
 
@@ -84,11 +107,11 @@
         const [tempo,setTempo]=useState(100);
         const [sigTop,setSigTop]=useState(4); const [sigBottom,setSigBottom]=useState(4);
         const [countInBars,setCountInBars]=useState(1); const [clickEnabled,setClickEnabled]=useState(true);
-        const [clickVol,setClickVol]=useState(0.7); // NEW: metronome volume (0..1)
-        const clickVolRef=useRef(0.7);
-        useEffect(()=>{ clickVolRef.current = clickVol; }, [clickVol]);
+        const [clickVol,setClickVol]=useState(0.7);
+        const clickVolRef=useRef(0.7); useEffect(()=>{ clickVolRef.current = clickVol; }, [clickVol]);
 
         const [latencyMs,setLatencyMs]=useState(0);
+        const [isCalibrating,setIsCalibrating]=useState(false);
 
         // Monitor
         const [monitorEnabled,setMonitorEnabled]=useState(true);
@@ -107,7 +130,6 @@
             name:`Track ${String(i+1).padStart(2,'0')}`,
             clips:[], isRecording:false,
             volume:0.9, pan:0, mute:false, solo:false, offsetMs:0,
-            // link stereo pairs: only meaningful on odd indexes (1→2, 3→4, ...)
             linkNextStereo:false,
             mediaRecorder:null
           }))
@@ -183,6 +205,100 @@
         function beginMediaRecorder(i){ setupMonitorNodes(); updateMonitorRouting(); const mime=getSupportedMimeType(); const rec=new MediaRecorder(micStreamRef.current,{ mimeType:mime }); const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size>0) chunks.push(e.data); }; rec.onstop=async()=>{ disconnectMonitor(); const blob=new Blob(chunks,{type:rec.mimeType}); const url=URL.createObjectURL(blob); const ctx=ensureAudioContext(); setStatus('🔎 Decoding…'); let buffer=await blobToAudioBuffer(ctx, blob); const est=(ctx.baseLatency||0)+(ctx.outputLatency||0)+(latencyMs||0)/1000; if(est>0) buffer=trimAudioBuffer(ctx, buffer, est); const clip={ url, blob, buffer }; setTracks(prev=>{ const copy=[...prev]; copy[i]={...copy[i],clips:[...copy[i].clips, clip], isRecording:false, mediaRecorder:null}; return copy; }); setStatus(`💾 Saved clip on Track ${i+1}`); };
           setTracks(prev=>{ const copy=[...prev]; copy[i]={...copy[i],isRecording:true,mediaRecorder:rec}; return copy; }); rec.start(); setStatus(`⏺ Recording Track ${i+1}…`); }
 
+        // ---------- Auto Latency Calibration ----------
+        async function calibrateLatency(){
+          if(isCalibrating) return;
+          const ctx = ensureAudioContext();
+          if(!micStreamRef.current){ setStatus('❌ Calibrate: grant mic access first.'); return; }
+          setIsCalibrating(true); setStatus('🧪 Calibrating latency… Keep speakers at moderate level or connect loopback cable.');
+
+          try{
+            // Stop transport & metronome during calibration
+            stopAllPlayback();
+
+            // Build a 2‑channel capture graph: [ch0 = stimulus], [ch1 = mic]
+            const merger = ctx.createChannelMerger(2);
+            const dest = ctx.createMediaStreamDestination();
+            merger.connect(dest);
+
+            // Stimulus: short noise bursts via BufferSource (broadband → easy to detect)
+            const sr = ctx.sampleRate;
+            const burstMs = 20; // 20ms bursts
+            const burstLen = Math.floor(sr * (burstMs/1000));
+            const burstBuf = ctx.createBuffer(1, burstLen, sr);
+            const ch0 = burstBuf.getChannelData(0);
+            for(let i=0;i<burstLen;i++){ ch0[i] = (Math.random()*2-1) * 0.8; }
+            const stimGain = ctx.createGain(); stimGain.gain.value = 0.6; // to destination (audible)
+            // route to merger channel 0 and to speakers
+            stimGain.connect(merger, 0, 0);
+            stimGain.connect(ctx.destination);
+
+            // Mic → merger channel 1
+            const micSrc = ctx.createMediaStreamSource(micStreamRef.current);
+            const micGain = ctx.createGain(); micGain.gain.value = 1.0;
+            micSrc.connect(micGain).connect(merger, 0, 1);
+
+            // Schedule a small train of bursts
+            const N = 5; const gapMs = 250;
+            const startAt = ctx.currentTime + 0.25;
+            const burstDurSec = burstMs/1000;
+            for(let k=0;k<N;k++){
+              const s = ctx.createBufferSource();
+              s.buffer = burstBuf;
+              s.connect(stimGain);
+              s.start(startAt + k*(gapMs/1000));
+            }
+
+            // Record the merged stream
+            const mime = getSupportedMimeType();
+            const mr = new MediaRecorder(dest.stream, { mimeType: mime });
+            const chunks=[]; mr.ondataavailable = e=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
+            const totalDurationMs = 250 + N*gapMs + 400; // safety tail
+            mr.start();
+            await new Promise(res=> setTimeout(res, totalDurationMs));
+            await new Promise(res=>{ mr.onstop = res; mr.stop(); });
+
+            // Decode
+            const blob = new Blob(chunks, { type: mime });
+            const buf = await blobToAudioBuffer(ctx, blob);
+            const A = buf.numberOfChannels>=1 ? buf.getChannelData(0) : null; // stimulus capture
+            const B = buf.numberOfChannels>=2 ? buf.getChannelData(1) : null; // mic capture
+            if(!A || !B){ throw new Error('Calibrate: missing channels in capture.'); }
+
+            // Compute energy and pick peaks
+            const win = Math.floor(sr * (burstMs/1000));
+            const E0 = movingEnergy(A, win);
+            const E1 = movingEnergy(B, win);
+            const minDist = Math.floor((gapMs/1000) * sr * 0.6);
+            const p0 = findPeaksFromEnergy(E0, minDist, 0.3).slice(0, N);
+            const p1 = findPeaksFromEnergy(E1, minDist, 0.15).slice(0, N);
+            if(p0.length===0 || p1.length===0){ throw new Error('Calibrate: could not detect pulses. Raise speakers or use loopback.'); }
+
+            // Pair peaks by order (burst train has fixed spacing)
+            const pairs = Math.min(p0.length, p1.length);
+            const lags = [];
+            for(let i=0;i<pairs;i++){
+              const idx0 = p0[i] + Math.floor(win/2); // center of window
+              const idx1 = p1[i] + Math.floor(win/2);
+              lags.push(idx1 - idx0);
+            }
+            // Robust estimate: median
+            lags.sort((a,b)=>a-b);
+            const lagSamples = lags[Math.floor(lags.length/2)];
+            const ms = (lagSamples / sr) * 1000;
+
+            // Update global latency and report
+            const msRounded = Math.max(0, Math.round(ms));
+            setLatencyMs(msRounded);
+            setStatus(`✅ Calibrated latency: ~${msRounded} ms (median of ${pairs} pulses).`);
+          } catch(err){
+            console.error(err);
+            setStatus(`❌ Calibration failed: ${err.message||err}`);
+          } finally {
+            setIsCalibrating(false);
+          }
+        }
+
         // ---------- Transport ----------
         function play(){ if(tracks.every(t=>!t.clips?.length)){ setStatus('Nothing to play yet.'); return; } const ctx=ensureAudioContext(); const startAt=ctx.currentTime+0.02; if(clickEnabled) startClickAt(ctx,startAt); const startPos = loopEnabled? loopStartSec: 0; const dur = loopEnabled? Math.max(0.001, loopEndSec - startPos): null; schedulePlayback({ freshStart:true, startPosSec:startPos, durationSec:dur }); setStatus('▶️ Playing…'); }
         function stop(){ stopAllPlayback(); setStatus('■ Stopped.'); }
@@ -194,12 +310,8 @@
         function finishExportIfAny(){ if(mixMediaRecorderRef.current && mixMediaRecorderRef.current.state!=='inactive'){ try{ mixMediaRecorderRef.current.stop(); }catch{} mixMediaRecorderRef.current=null; } }
 
         // ---------- Track helpers & stereo link ----------
-        function partnerIndex(i){ return (i%2===0)? i+1 : i-1; } // 0↔1, 2↔3, etc (0-based)
         function isLeft(i){ return i%2===0; }
-        function setTrack(i, patch){ setTracks(prev=>{ const copy=[...prev]; const t={...copy[i], ...patch}; copy[i]=t; // propagate if linked
-          if(isLeft(i) && t.linkNextStereo){ const j=i+1; if(copy[j]){ const mirror={ volume:t.volume, mute:t.mute, solo:t.solo, offsetMs:t.offsetMs }; copy[i].pan = -1; copy[j] = { ...copy[j], ...mirror, pan: 1 }; } }
-          if(!isLeft(i)){ const j=i-1; if(copy[j]?.linkNextStereo){ const L=copy[j]; copy[i] = { ...copy[i], volume:L.volume, mute:L.mute, solo:L.solo, offsetMs:L.offsetMs, pan:1 }; } }
-          return copy; }); }
+        function setTrack(i, patch){ setTracks(prev=>{ const copy=[...prev]; const t={...copy[i], ...patch}; copy[i]=t; if(isLeft(i) && t.linkNextStereo){ const j=i+1; if(copy[j]){ const mirror={ volume:t.volume, mute:t.mute, solo:t.solo, offsetMs:t.offsetMs }; copy[i].pan = -1; copy[j] = { ...copy[j], ...mirror, pan: 1 }; } } if(!isLeft(i)){ const j=i-1; if(copy[j]?.linkNextStereo){ const L=copy[j]; copy[i] = { ...copy[i], volume:L.volume, mute:L.mute, solo:L.solo, offsetMs:L.offsetMs, pan:1 }; } } return copy; }); }
         function toggleLink(i){ if(!isLeft(i)) return; setTracks(prev=>{ const copy=[...prev]; const cur=copy[i].linkNextStereo; copy[i].linkNextStereo = !cur; const j=i+1; if(copy[j]){ if(!cur){ copy[i].pan = -1; copy[j].pan = 1; copy[j].volume = copy[i].volume; copy[j].mute = copy[i].mute; copy[j].solo = copy[i].solo; copy[j].offsetMs = copy[i].offsetMs; } } return copy; }); }
         function deleteClip(i,ci){ setTracks(prev=>{ const copy=[...prev]; const t={...copy[i]}; t.clips=t.clips.filter((_,k)=>k!==ci); copy[i]=t; return copy; }); }
 
@@ -214,15 +326,15 @@
         return (
           <div>
             <h1>🎚️ Eight‑Track Recorder</h1>
-            <p className="sub">8 tracks • sample‑accurate playback • overdub monitoring • stereo pair linking • transport with loop • minimal timeline.</p>
+            <p className="sub">8 tracks • sample‑accurate playback • overdub monitoring • stereo pair linking • transport with loop • minimal timeline • <strong>auto latency calibration</strong>.</p>
 
             {/* Transport strip */}
             <div className="card">
               <div className="bar" style={{justifyContent:'space-between'}}>
                 <div className="bar">
-                  <button className="btn green" onClick={play}>▶︎ Play</button>
-                  <button className="btn gray" onClick={()=>{ stop(); finishExportIfAny(); }}>■ Stop</button>
-                  <button className="btn" onClick={startExport} disabled={tracks.every(t=>!t.clips?.length)}>📤 Quick Mix</button>
+                  <button className="btn green" onClick={play} disabled={isCalibrating}>▶︎ Play</button>
+                  <button className="btn gray" onClick={()=>{ stop(); finishExportIfAny(); }} disabled={isCalibrating}>■ Stop</button>
+                  <button className="btn" onClick={startExport} disabled={isCalibrating || tracks.every(t=>!t.clips?.length)}>📤 Quick Mix</button>
                   <span className="pill">Time</span>
                   <span className="mono" style={{fontSize:'14px'}}>{fmtTime(nowSec)}</span>
                 </div>
@@ -267,6 +379,7 @@
                 <label className="bar" style={{gap:6}}><input type="checkbox" checked={clickEnabled} onChange={e=>setClickEnabled(e.target.checked)} />Enable</label>
                 <label>Click Vol</label><input type="range" min="0" max="1" step="0.01" value={clickVol} onChange={e=>setClickVol(+e.target.value)} style={{width:160}}/>
                 <label>Latency (ms)</label><input type="number" value={latencyMs} onChange={e=>setLatencyMs(+e.target.value||0)} style={{width:88}}/>
+                <button className="btn" onClick={calibrateLatency} disabled={!micGranted || isCalibrating}>{isCalibrating? 'Calibrating…' : 'Calibrate'}</button>
                 <span className="mini">{status}</span>
               </div>
             </div>
@@ -319,7 +432,7 @@
                     <div className="mini" style={{textAlign:'center'}}>{t.clips?.length||0} clip{(t.clips?.length||0)===1?'':'s'}</div>
 
                     <div style={{display:'flex',justifyContent:'flex-end'}}>
-                      <button className={`btn ${t.isRecording?'red':''}`} onClick={()=>toggleRecord(i)}>● Rec</button>
+                      <button className={`btn ${t.isRecording?'red':''}`} onClick={()=>toggleRecord(i)} disabled={isCalibrating}>● Rec</button>
                     </div>
                   </div>
 
@@ -336,7 +449,7 @@
               );
             })}
 
-            <p className="mini">Transport: time display updates live; loop uses precise source <code>start(when, offset, duration)</code>. Stereo pairs: link L→R to couple vol/mute/solo/offset and hard-pan L/R. Metronome volume is adjustable via the new <em>Click Vol</em> slider.</p>
+            <p className="mini">Transport: time display updates live; loop uses precise source <code>start(when, offset, duration)</code>. Stereo pairs: link L→R to couple vol/mute/solo/offset and hard-pan L/R. Metronome volume is adjustable via <em>Click Vol</em>. <strong>Auto Latency</strong> plays a short burst train, records mic + stimulus in sync, and sets <em>Latency (ms)</em> from the measured lag.</p>
           </div>
         );
       }
