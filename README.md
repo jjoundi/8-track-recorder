@@ -1,6 +1,6 @@
 # 8‑Track Recorder
 
-Open‑source web Portastudio inspired by the Tascam DP‑03SD. This is a **starter repo** scaffold: Vite + React, CI for GitHub Pages, and a minimal 8‑track UI. The audio engine is a simple placeholder you can evolve per the roadmap.
+Open‑source web Portastudio inspired by the Tascam DP‑03SD. This is a **starter repo** scaffold: Vite + React, CI for GitHub Pages, and a minimal 8‑track UI. The audio engine is a simple placeholder you can evolve per the roadmap. Also beautiful version by my colleague Tim Theys: https://clamp-simple-49950781.figma.site
 
 ## Quick Start
 ```bash
