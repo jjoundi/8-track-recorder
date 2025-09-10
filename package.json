@@ -7,7 +7,8 @@
     "dev": "vite --host --https",
     "build": "vite build",
     "preview": "vite preview --host --https",
-    "lint": "echo \"(add eslint later)\""
+    "lint": "echo \"(add eslint later)\"",
+    "test": "node --test"
   },
   "dependencies": {
     "react": "^18.3.1",

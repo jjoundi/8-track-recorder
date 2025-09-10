@@ -56,7 +56,7 @@ export function setGain(i, value) { tracks[i]?.gainNode && (tracks[i].gainNode.g
 export function setMute(i, flag) { if (tracks[i]) tracks[i].muted = flag }
 export function setSolo(i, flag) { if (tracks[i]) tracks[i].solo = flag }
 
-function audible(i) {
+export function audible(i) {
   const anySolo = tracks.some(t => t.solo)
   if (anySolo) return tracks[i].solo && !tracks[i].muted
   return !tracks[i].muted
@@ -119,14 +119,17 @@ export async function stopRecord() {
   const arrayBuf = await blob.arrayBuffer()
   const audioBuf = await ctx.decodeAudioData(arrayBuf)
 
-  // Assign to the first armed track (for now)
-  const idx = recMedia.armedIndices[0] ?? 0
-  if (tracks[idx]) {
+  // Assign to the first armed track if one was provided
+  const idx = recMedia.armedIndices[0]
+  if (idx != null && tracks[idx]) {
     tracks[idx].buffer = audioBuf
   }
   recMedia = null
   isRecording = false
 }
+
+// Test helper to inject mock tracks
+export function __setTracksForTest(t) { tracks = t }
 
 export async function exportMixdown() {
   // Placeholder: realtime capture is browser/codecs dependent. Prefer OfflineAudioContext per roadmap.
