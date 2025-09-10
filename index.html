@@ -1,64 +1,276 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
-    <title>Four‑Track Recorder — Day 4: Editing Basics</title>
+    <title>Eight-Track Recorder — Day 5</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- JSZip for project import/export -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <style>
-      :root{ --bg:#f6f7fb; --card:#fff; --ink:#0f172a; --muted:#64748b; --brand:#2563eb; --accent:#10b981; --meter:#22c55e; --meterHi:#ef4444; --punch:#34d399; --marker:#3b82f6 }
-      *{box-sizing:border-box}
-      body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
-      #root{max-width:1180px;margin:24px auto;padding:16px}
-      h1{margin:0 0 6px 0}
-      .sub{color:var(--muted);margin:0 0 16px 0}
-      .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-      .btn{padding:8px 12px;border-radius:10px;cursor:pointer;border:0;background:#e5e7eb}
-      .btn.primary{background:var(--brand);color:white}
-      .btn.green{background:var(--accent);color:white}
-      .btn.gray{background:#e5e7eb}
-      .btn.red{background:#ef4444;color:white}
-      .btn:disabled{opacity:.5;cursor:not-allowed}
-      select,input[type="number"],input[type="text"],input[type="range"]{padding:6px 8px;border-radius:10px;border:1px solid #e5e7eb;background:#fff}
-      input[type="range"]{padding:0}
-      .card{background:var(--card);padding:12px;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:12px}
-      .row{display:grid;grid-template-columns: 32px 160px 1fr 1fr 150px 110px 70px 60px;gap:8px;align-items:center}
-      .mini{font-size:12px;color:var(--muted)}
-      .clips{display:grid;gap:8px;margin-top:6px}
-      .hr{height:1px;background:#e5e7eb;margin:10px 0}
-      .nowrap{white-space:nowrap}
-      .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
-      .pill{font-size:11px;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#3730a3}
-      .pairBadge{font-size:11px;padding:2px 8px;border-radius:999px;background:#ecfeff;color:#155e75;border:1px solid #cffafe}
+        :root {
+            --bg: #f6f7fb;
+            --card: #fff;
+            --ink: #0f172a;
+            --muted: #64748b;
+            --brand: #2563eb;
+            --accent: #10b981;
+        }
 
-      /* Timeline */
-      .timeline{position:relative;height:60px;border-radius:10px;background:linear-gradient(90deg, rgba(0,0,0,0.04) 0 100%)}
-      .ticks{position:absolute;inset:0;background:repeating-linear-gradient(90deg, transparent 0px, transparent calc(100%/60), rgba(0,0,0,.07) calc(100%/60) calc(100%/60 + 1px));}
-      .tickLabels{position:absolute;inset:0;pointer-events:none}
-      .tickLabels span{position:absolute;top:4px;transform:translateX(-50%);font-size:10px;color:#475569}
-      .loopRegion{position:absolute;top:0;bottom:0;background:rgba(37,99,235,.15);border:1px solid rgba(37,99,235,.35);border-radius:10px}
-      .punchRegion{position:absolute;top:0;bottom:0;background:rgba(52,211,153,.18);border:1px solid rgba(52,211,153,.55);border-radius:10px}
-      .preRoll{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg, rgba(52,211,153,.12) 0 6px, rgba(52,211,153,.06) 6px 12px);border-radius:10px}
-      .playhead{position:absolute;top:0;bottom:0;width:2px;background:#ef4444}
-      .marker{position:absolute;top:0;bottom:0;width:2px;background:var(--marker)}
-      .markerLabel{position:absolute;top:18px;transform:translateX(-50%);font-size:10px;background:#dbeafe;color:#1e3a8a;padding:1px 4px;border-radius:4px;border:1px solid #bfdbfe}
+        * {
+            box-sizing: border-box
+        }
 
-      /* Sliders */
-      .slider{width:100%}
-      .pan{width:100%}
-      .idx{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#f1f5f9;color:#0f172a;font-weight:600}
-      .row .btn{padding:6px 8px}
-      .row input[type="text"]{padding:6px 8px}
+        body {
+            margin: 0;
+            font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            background: var(--bg);
+            color: var(--ink)
+        }
 
-      /* Meters */
-      .meter{height:8px;background:#e5e7eb;border-radius:6px;overflow:hidden}
-      .meterFill{height:100%;background:linear-gradient(90deg, var(--meter), var(--meter));transition:width .08s}
-      .meterFill.hot{background:linear-gradient(90deg, var(--meter), var(--meterHi))}
+        #root {
+            max-width: 1100px;
+            margin: 24px auto;
+            padding: 16px
+        }
+
+        h1 {
+            margin: 0 0 6px 0
+        }
+
+        .sub {
+            color: var(--muted);
+            margin: 0 0 16px 0
+        }
+
+        .bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center
+        }
+
+        .btn {
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            border: 0;
+            background: #e5e7eb
+        }
+
+            .btn.primary {
+                background: var(--brand);
+                color: white
+            }
+
+            .btn.green {
+                background: var(--accent);
+                color: white
+            }
+
+            .btn.gray {
+                background: #e5e7eb
+            }
+
+            .btn.red {
+                background: #ef4444;
+                color: white
+            }
+
+            .btn:disabled {
+                opacity: .5;
+                cursor: not-allowed
+            }
+
+        select, input[type="number"], input[type="text"], input[type="range"] {
+            padding: 6px 8px;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            background: #fff
+        }
+
+        input[type="range"] {
+            padding: 0
+        }
+
+        .card {
+            background: var(--card);
+            padding: 12px;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.08);
+            margin-bottom: 12px
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 32px 160px 1fr 1fr 110px 70px 60px;
+            gap: 8px;
+            align-items: center
+        }
+
+        .mini {
+            font-size: 12px;
+            color: var(--muted)
+        }
+
+        .clips {
+            display: grid;
+            gap: 8px;
+            margin-top: 6px
+        }
+
+        .hr {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 10px 0
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px
+        }
+
+        .nowrap {
+            white-space: nowrap
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace
+        }
+
+        .pill {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #eef2ff;
+            color: #3730a3
+        }
+
+        .pairBadge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #ecfeff;
+            color: #155e75;
+            border: 1px solid #cffafe
+        }
+
+        /* Timeline */
+        .timeline {
+            position: relative;
+            height: 64px;
+            border-radius: 10px;
+            background: linear-gradient(90deg, rgba(0,0,0,0.04) 0 100%);
+            cursor: crosshair
+        }
+
+        .ticks {
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(90deg, transparent 0px, transparent calc(100%/60), rgba(0,0,0,.07) calc(100%/60) calc(100%/60 + 1px));
+        }
+
+        .tickLabels {
+            position: absolute;
+            inset: 0;
+            pointer-events: none
+        }
+
+            .tickLabels span {
+                position: absolute;
+                top: 4px;
+                transform: translateX(-50%);
+                font-size: 10px;
+                color: #475569
+            }
+
+        .loopRegion {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            background: rgba(37,99,235,.15);
+            border: 1px solid rgba(37,99,235,.35);
+            border-radius: 10px
+        }
+
+        .punchRegion {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            background: rgba(239,68,68,.12);
+            border: 1px solid rgba(239,68,68,.35);
+            border-radius: 10px
+        }
+
+        .playhead {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #ef4444
+        }
+
+        .marker {
+            position: absolute;
+            bottom: 0;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center
+        }
+
+            .marker i {
+                width: 0;
+                height: 0;
+                border-left: 6px solid transparent;
+                border-right: 6px solid transparent;
+                border-top: 10px solid #0ea5e9;
+                margin-bottom: 2px
+            }
+
+            .marker span {
+                font-size: 10px;
+                color: #0369a1;
+                background: #e0f2fe;
+                border: 1px solid #7dd3fc;
+                border-radius: 4px;
+                padding: 1px 4px
+            }
+
+        /* Compact sliders */
+        .slider {
+            width: 100%
+        }
+
+        .pan {
+            width: 100%
+        }
+
+        .idx {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: #f1f5f9;
+            color: #0f172a;
+            font-weight: 600
+        }
+
+        .row .btn {
+            padding: 6px 8px
+        }
+
+        .row input[type="text"] {
+            padding: 6px 8px
+        }
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
@@ -77,19 +289,61 @@
         for(let ch=0; ch<buffer.numberOfChannels; ch++){ out.getChannelData(ch).set(buffer.getChannelData(ch).subarray(start, start+len)); }
         return out;
       }
-      function sliceAudioBuffer(ctx, buffer, startSec, durSec){
-        const sr = buffer.sampleRate; const start = Math.max(0, Math.floor(startSec*sr)); const len = Math.max(0, Math.floor(durSec*sr));
-        const out = ctx.createBuffer(buffer.numberOfChannels, len, sr);
-        for(let ch=0; ch<buffer.numberOfChannels; ch++){
-          const src = buffer.getChannelData(ch);
-          out.getChannelData(ch).set(src.subarray(start, start+len));
-        }
-        return out;
-      }
       const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
       const fmtTime = s=>{ if(!isFinite(s)||s<0) s=0; const m=Math.floor(s/60); const sec=s%60; return `${String(m).padStart(2,'0')}:${sec.toFixed(3).padStart(6,'0')}`; };
 
-      // Peak/energy utilities for latency detection
+      // ---------- WAV Export Utilities ----------
+      function writeString(view, offset, string){ for(let i=0;i<string.length;i++){ view.setUint8(offset+i, string.charCodeAt(i)); } }
+      function floatTo16BitPCM(output, offset, input){
+        for(let i=0;i<input.length;i++,offset+=2){
+          const s = Math.max(-1, Math.min(1, input[i]));
+          output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        }
+      }
+      function interleave(inputL, inputR){
+        const len = inputL.length + inputR.length;
+        const out = new Float32Array(len);
+        let index = 0, inputIndex = 0;
+        while(inputIndex < inputL.length){
+          out[index++] = inputL[inputIndex];
+          out[index++] = inputR[inputIndex];
+          inputIndex++;
+        }
+        return out;
+      }
+      function audioBufferToWavBlob(buffer, isStereo=true){
+        const channels = buffer.numberOfChannels;
+        const sampleRate = buffer.sampleRate;
+        const len = buffer.length * (isStereo ? 2 : 1);
+        const bufferLen = len * 2 + 44;
+        const view = new DataView(new ArrayBuffer(bufferLen));
+
+        // RIFF chunk descriptor
+        writeString(view, 0, 'RIFF');
+        view.setUint32(4, bufferLen - 8, true);
+        writeString(view, 8, 'WAVE');
+
+        // fmt chunk
+        writeString(view, 12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // Linear PCM
+        view.setUint16(22, isStereo ? 2 : channels, true); // Channels
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * (isStereo ? 4 : 2), true); // Byte Rate
+        view.setUint16(32, isStereo ? 4 : 2, true); // Block Align
+        view.setUint16(34, 16, true); // Bits per sample
+
+        // data chunk
+        writeString(view, 36, 'data');
+        view.setUint32(40, len * 2, true);
+
+        const data = isStereo ? interleave(buffer.getChannelData(0), buffer.getChannelData(1)) : buffer.getChannelData(0);
+        floatTo16BitPCM(view, 44, data);
+
+        return new Blob([view], {type:'audio/wav'});
+      }
+
+      // ---------- Peak/energy utilities for latency detection ----------
       function movingEnergy(data, win){
         const n=data.length; const out=new Float32Array(Math.max(0,n-win));
         let acc=0; for(let i=0;i<win;i++){ const v=data[i]; acc+=v*v; }
@@ -112,22 +366,49 @@
         return peaks;
       }
 
-      // --- Reverb IR generator (simple decaying noise) ---
-      function createReverbIR(ctx, seconds=2.0){
-        const sr = ctx.sampleRate; const len = Math.max(1, Math.floor(seconds*sr));
-        const buf = ctx.createBuffer(2, len, sr);
-        for(let ch=0; ch<2; ch++){
-          const data = buf.getChannelData(ch);
-          for(let i=0;i<len;i++){
-            const t = i/len;
-            const decay = Math.pow(1 - t, 2.5);
-            data[i] = (Math.random()*2-1) * decay * 0.5;
-          }
-        }
-        return buf;
+      // ---------- IndexedDB Utilities ----------
+      const DB_NAME = 'eight-track-recorder-db';
+      const STORE_NAME = 'projects';
+
+      let db = null;
+      function openDb(){
+        return new Promise((resolve, reject) => {
+          if (db) { resolve(db); return; }
+          const request = indexedDB.open(DB_NAME, 1);
+          request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if(!db.objectStoreNames.contains(STORE_NAME)){
+              db.createObjectStore(STORE_NAME);
+            }
+          };
+          request.onsuccess = (e) => {
+            db = e.target.result;
+            resolve(db);
+          };
+          request.onerror = (e) => reject(e.target.error);
+        });
       }
 
-      function App(){
+      async function saveProjectToDb(project){
+        const db = await openDb();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        await store.put(project, 'currentProject');
+        return new Promise(resolve => tx.oncomplete = resolve);
+      }
+
+      async function loadProjectFromDb(){
+        const db = await openDb();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.get('currentProject');
+        return new Promise((resolve, reject) => {
+          request.onsuccess = (e) => resolve(e.target.result);
+          request.onerror = (e) => reject(e.target.error);
+        });
+      }
+
+      function FourTrackRecorder(){
         const TRACK_COUNT = 8;
 
         // ---------- State ----------
@@ -151,28 +432,27 @@
         const [monitorGainVal,setMonitorGainVal]=useState(0.9);
         const [monitorPanVal, setMonitorPanVal] = useState(0);
 
-        // FX / Mixer
-        const [reverbWet,setReverbWet] = useState(0.2);
-        const [reverbDecay,setReverbDecay] = useState(1.8);
-        const [preset,setPreset] = useState('Flat & Dry');
-
         // Transport / loop / playhead
         const [loopEnabled,setLoopEnabled]=useState(false);
         const [loopStartSec,setLoopStartSec]=useState(0);
         const [loopEndSec,setLoopEndSec]=useState(10);
-        const [nowSec,setNowSec]=useState(0);       // live during play
-        const [playheadSec,setPlayheadSec]=useState(0); // editing cursor
+        const [playheadSec,setPlayheadSec]=useState(0);
+        const [nowSec,setNowSec]=useState(0);
 
-        // Day 4 — Punch
-        const [punchEnabled, setPunchEnabled] = useState(false);
-        const [punchInSec, setPunchInSec] = useState(2);
-        const [punchOutSec, setPunchOutSec] = useState(6);
-        const [preRollSec, setPreRollSec] = useState(1);
+        // Punch
+        const [punchEnabled,setPunchEnabled]=useState(false);
+        const [punchInSec,setPunchInSec]=useState(2);
+        const [punchOutSec,setPunchOutSec]=useState(6);
+        const [preRollSec,setPreRollSec]=useState(1.0);
 
-        // Day 4 — Markers
-        const [markers, setMarkers] = useState([]); // {id, t, label}
-        const [markerAId, setMarkerAId] = useState(null);
-        const [markerBId, setMarkerBId] = useState(null);
+        // Markers
+        const [markers,setMarkers]=useState([]); // {id,time,name}
+        const [markerAId,setMarkerAId]=useState(null);
+        const [markerBId,setMarkerBId]=useState(null);
+
+        // Export/Bounce
+        const [mixSampleRate, setMixSampleRate] = useState(44100);
+        const [isExporting, setIsExporting] = useState(false);
 
         const [tracks,setTracks]=useState(
           Array.from({length:TRACK_COUNT},(_,i)=>({
@@ -180,45 +460,30 @@
             clips:[], isRecording:false,
             volume:0.9, pan:0, mute:false, solo:false, offsetMs:0,
             linkNextStereo:false,
-            mediaRecorder:null,
-            eq: { low: 0, mid: 0, high: 0, midFreq: 1000 },
-            send: 0.15,
+            mediaRecorder:null
           }))
         );
-
-        // Meters
-        const [trackPeaks,setTrackPeaks] = useState(Array(TRACK_COUNT).fill(0));
-        const [masterPeak,setMasterPeak] = useState(0);
 
         // ---------- Refs ----------
         const micStreamRef = useRef(null);
         const audioCtxRef = useRef(null);
-        const currentSourcesRef = useRef([]);
+        const currentSourcesRef = useRef([]); // [{source, trackIndex}]
         const isClickingRef = useRef(false);
         const transportRunningRef = useRef(false);
         const rafRef = useRef(null);
         const transportBaseCtxTimeRef = useRef(0);
         const transportStartPosRef = useRef(0);
         const loopTimerRef = useRef(null);
-        const recStopTimerRef = useRef(null);
-
-        // Undo/Redo history
-        const historyRef = useRef([]);
-        const futureRef = useRef([]);
-        const lastHistoryTsRef = useRef(0);
-        const applyingSnapshotRef = useRef(false);
+        const punchTimersRef = useRef({ start:null, stop:null });
 
         // export capture
         const mixDestRef = useRef(null); const mixMediaRecorderRef = useRef(null); const mixChunksRef = useRef([]);
 
         // monitor nodes
-        const monitorRef = useRef({ src:null, gain:null, pan:null, connected:false, analyser:null });
+        const monitorRef = useRef({ src:null, gain:null, pan:null, connected:false });
 
-        // FX graph
-        const fxRef = useRef({ masterGain:null, masterAnalyser:null, reverbIn:null, reverbConv:null, reverbReturn:null });
-
-        // Per-track analysers for meters
-        const trackAnalysersRef = useRef(Array(TRACK_COUNT).fill(null));
+        // History (undo/redo)
+        const historyRef = useRef({ stack:[], idx:-1, applying:false, initialized:false, limit:50 });
 
         // ---------- Devices ----------
         useEffect(()=>{
@@ -229,30 +494,55 @@
         // ---------- AudioContext ----------
         function ensureAudioContext(){ if(!audioCtxRef.current){ audioCtxRef.current = new (window.AudioContext||window.webkitAudioContext)(); } if(audioCtxRef.current.state==='suspended'){ audioCtxRef.current.resume(); } return audioCtxRef.current; }
 
-        // ---------- FX Graph ----------
-        function ensureFXGraph(){
-          const ctx = ensureAudioContext();
-          if(!fxRef.current.masterGain){
-            const masterGain = ctx.createGain(); masterGain.gain.value = 1.0;
-            const masterAnalyser = ctx.createAnalyser(); masterAnalyser.fftSize = 2048;
-            const reverbIn = ctx.createGain(); reverbIn.gain.value = 1.0;
-            const reverbConv = ctx.createConvolver(); reverbConv.normalize = true; reverbConv.buffer = createReverbIR(ctx, reverbDecay);
-            const reverbReturn = ctx.createGain(); reverbReturn.gain.value = reverbWet;
-            reverbIn.connect(reverbConv); reverbConv.connect(reverbReturn); reverbReturn.connect(masterGain);
-            masterGain.connect(masterAnalyser); masterAnalyser.connect(ctx.destination);
-            fxRef.current = { masterGain, masterAnalyser, reverbIn, reverbConv, reverbReturn };
-          }
-          return fxRef.current;
-        }
-        useEffect(()=>{ const fx = ensureFXGraph(); if(fx.reverbReturn) fx.reverbReturn.gain.value = clamp(reverbWet,0,1); }, [reverbWet]);
-        useEffect(()=>{ const fx = ensureFXGraph(); if(fx.reverbConv){ fx.reverbConv.buffer = createReverbIR(ensureAudioContext(), clamp(reverbDecay,0.2,12)); } }, [reverbDecay]);
-
         // ---------- Helpers ----------
-        function stopAllPlayback(){ currentSourcesRef.current.forEach(({source})=>{ try{ source.stop(); }catch{} }); currentSourcesRef.current=[]; trackAnalysersRef.current = Array(TRACK_COUNT).fill(null); transportRunningRef.current=false; stopClick(); stopTicker(); clearLoopTimer(); clearRecStopTimer(); }
-        function currentAudibleSet(local){ const anySolo = local.some(t=>t.solo); return local.map(t=>({audible: anySolo ? t.solo : !t.mute, volume:t.volume, pan:t.pan, offsetMs:t.offsetMs, eq:t.eq, send:t.send})); }
+        function stopAllPlayback(){ currentSourcesRef.current.forEach(({source})=>{ try{ source.stop(); }catch{} }); currentSourcesRef.current=[]; transportRunningRef.current=false; stopClick(); stopTicker(); clearLoopTimer(); clearPunchTimers(); }
+        function currentAudibleSet(local){ const anySolo = local.some(t=>t.solo); return local.map(t=>({audible: anySolo ? t.solo : !t.mute, volume:t.volume, pan:t.pan, offsetMs:t.offsetMs})); }
         function clearLoopTimer(){ if(loopTimerRef.current){ clearTimeout(loopTimerRef.current); loopTimerRef.current=null; } }
-        function clearRecStopTimer(){ if(recStopTimerRef.current){ clearTimeout(recStopTimerRef.current); recStopTimerRef.current=null; } }
-        const projectLenSec = ()=>{ let m=0; for(const t of tracks){ const d=t.clips[0]?.buffer?.duration||0; if(d>m) m=d; } const maxMarker = markers.reduce((a,m)=>Math.max(a,m.t),0); return Math.max(m, loopEndSec||0, punchOutSec||0, maxMarker, 10); };
+        function clearPunchTimers(){ const p=punchTimersRef.current; if(p.start){ clearTimeout(p.start); p.start=null; } if(p.stop){ clearTimeout(p.stop); p.stop=null; } }
+        const projectLenSec = ()=>{ let m=0; for(const t of tracks){ const d=t.clips[0]?.buffer?.duration||0; if(d>m) m=d; } const maxMarker = markers.reduce((acc,m)=>Math.max(acc,m.time||0),0); return Math.max(m, loopEndSec||0, punchOutSec||0, maxMarker, 10); };
+
+        // ---------- History ----------
+        function makeSnapshot(){
+          // Lightweight deep copy via JSON for our simple state
+          const tracksSerializable = tracks.map(t => ({
+            ...t,
+            // Only keep URL, as buffers are recreated
+            clips: t.clips.map(c => ({ url: c.url, buffer: c.buffer ? c.buffer.getChannelData(0).buffer : null, duration: c.buffer?.duration })),
+            mediaRecorder: null // not serializable
+          }));
+
+          return {
+            tracks: tracksSerializable,
+            globals: { tempo, sigTop, sigBottom, countInBars, clickEnabled, clickVol, latencyMs, monitorEnabled, monitorOnlyDuringRec, monitorGainVal, monitorPanVal, loopEnabled, loopStartSec, loopEndSec, playheadSec, punchEnabled, punchInSec, punchOutSec, preRollSec, markers:[...markers], markerAId, markerBId, mixSampleRate }
+          };
+        }
+        function applySnapshot(s){ if(!s) return; historyRef.current.applying=true; try{
+          setTracks(s.tracks);
+          const g=s.globals||{};
+          setTempo(g.tempo??tempo); setSigTop(g.sigTop??sigTop); setSigBottom(g.sigBottom??sigBottom);
+          setCountInBars(g.countInBars??countInBars); setClickEnabled(!!g.clickEnabled); setClickVol(g.clickVol??clickVol);
+          setLatencyMs(g.latencyMs??latencyMs); setMonitorEnabled(!!g.monitorEnabled); setMonitorOnlyDuringRec(!!g.monitorOnlyDuringRec);
+          setMonitorGainVal(g.monitorGainVal??monitorGainVal); setMonitorPanVal(g.monitorPanVal??monitorPanVal);
+          setLoopEnabled(!!g.loopEnabled); setLoopStartSec(g.loopStartSec??0); setLoopEndSec(g.loopEndSec??0);
+          setPlayheadSec(g.playheadSec??0);
+          setPunchEnabled(!!g.punchEnabled); setPunchInSec(g.punchInSec??punchInSec); setPunchOutSec(g.punchOutSec??punchOutSec); setPreRollSec(g.preRollSec??preRollSec);
+          setMarkers(g.markers||[]); setMarkerAId(g.markerAId??null); setMarkerBId(g.markerBId??null);
+          setMixSampleRate(g.mixSampleRate??mixSampleRate);
+        } finally { historyRef.current.applying=false; }
+        }
+        function pushHistory(label='Change'){
+          if(historyRef.current.applying) return;
+          const s = historyRef.current;
+          const snap = makeSnapshot();
+          s.stack = s.stack.slice(0, s.idx+1);
+          s.stack.push({ label, snap });
+          if(s.stack.length> s.limit){ s.stack.shift(); }
+          s.idx = s.stack.length-1;
+        }
+        function undo(){ const s=historyRef.current; if(s.idx<=0) return; s.idx--; applySnapshot(s.stack[s.idx].snap); }
+        function redo(){ const s=historyRef.current; if(s.idx>=s.stack.length-1) return; s.idx++; applySnapshot(s.stack[s.idx].snap); }
+        // initialize history once
+        useEffect(()=>{ if(!historyRef.current.initialized){ historyRef.current.initialized=true; pushHistory('Init'); } });
 
         // ---------- Metronome ----------
         function startClickAt(ctx, when){ if(!clickEnabled) return; const spb=60/tempo; const bpb=sigTop; isClickingRef.current=true; const windowSec=1.0; let next=when, beat=0; (function schedule(){ if(!isClickingRef.current) return; const now=ctx.currentTime; while(next < now+windowSec){ const osc=ctx.createOscillator(); const g=ctx.createGain(); const down=(beat%bpb)===0; const base = down?0.4:0.22; g.gain.value = base * clamp(clickVolRef.current, 0, 1); osc.frequency.value=down?1200:850; osc.connect(g).connect(ctx.destination); osc.start(next); osc.stop(next+0.03); next+=spb; beat++; } setTimeout(schedule,100); })(); }
@@ -262,285 +552,549 @@
         async function requestMicrophone(){ try{ const constraints={ audio: selectedDevice? { deviceId:{exact:selectedDevice}, echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:2 } : true}; const stream=await navigator.mediaDevices.getUserMedia(constraints); micStreamRef.current=stream; setMicGranted(true); setStatus('🎤 Microphone ready.'); ensureAudioContext(); setupMonitorNodes(); updateMonitorRouting(); }catch(e){ console.error(e); micStreamRef.current=null; setMicGranted(false); setStatus('❌ Could not access microphone.'); } }
 
         // ---------- Monitor ----------
-        function setupMonitorNodes(){ const ctx=ensureAudioContext(); if(!micStreamRef.current) return; if(!monitorRef.current.src){ const m=monitorRef.current; m.src=ctx.createMediaStreamSource(micStreamRef.current); m.gain=ctx.createGain(); m.gain.gain.value=monitorGainVal; m.pan=(ctx.createStereoPanner)?ctx.createStereoPanner():null; if(m.pan) m.pan.pan.value=monitorPanVal; m.analyser = ctx.createAnalyser(); m.analyser.fftSize = 2048; } }
-        function connectMonitor(){ const ctx=ensureAudioContext(); const m=monitorRef.current; if(!m.src || m.connected) return; if(m.pan){ m.src.connect(m.gain).connect(m.pan).connect(m.analyser).connect(fxRef.current?.masterGain || ctx.destination); } else { m.src.connect(m.gain).connect(m.analyser).connect(fxRef.current?.masterGain || ctx.destination); } m.connected=true; }
-        function disconnectMonitor(){ const m=monitorRef.current; if(!m.connected) return; try{ if(m.pan) m.pan.disconnect(); m.gain.disconnect(); m.analyser.disconnect(); }catch{} m.connected=false; }
-        function updateMonitorRouting(){ ensureFXGraph(); if(!monitorEnabled){ disconnectMonitor(); } else if(monitorOnlyDuringRec){ const anyRec = tracks.some(t=>t.isRecording); if(anyRec) connectMonitor(); else disconnectMonitor(); } else { connectMonitor(); } if(monitorRef.current.gain) monitorRef.current.gain.gain.value=monitorGainVal; if(monitorRef.current.pan) monitorRef.current.pan.pan.value=monitorPanVal; }
+        function setupMonitorNodes(){ const ctx=ensureAudioContext(); if(!micStreamRef.current) return; if(!monitorRef.current.src){ const m=monitorRef.current; m.src=ctx.createMediaStreamSource(micStreamRef.current); m.gain=ctx.createGain(); m.gain.gain.value=monitorGainVal; m.pan=(ctx.createStereoPanner)?ctx.createStereoPanner():null; if(m.pan) m.pan.pan.value=monitorPanVal; } }
+        function connectMonitor(){ const ctx=ensureAudioContext(); const m=monitorRef.current; if(!m.src || m.connected) return; if(m.pan){ m.src.connect(m.gain).connect(m.pan).connect(ctx.destination); } else { m.src.connect(m.gain).connect(ctx.destination); } m.connected=true; }
+        function disconnectMonitor(){ const m=monitorRef.current; if(!m.connected) return; try{ if(m.pan) m.pan.disconnect(); m.gain.disconnect(); }catch{} m.connected=false; }
+        function updateMonitorRouting(){ if(!monitorEnabled){ disconnectMonitor(); } else if(monitorOnlyDuringRec){ const anyRec = tracks.some(t=>t.isRecording); if(anyRec) connectMonitor(); else disconnectMonitor(); } else { connectMonitor(); } if(monitorRef.current.gain) monitorRef.current.gain.gain.value=monitorGainVal; if(monitorRef.current.pan) monitorRef.current.pan.pan.value=monitorPanVal; }
         useEffect(()=>{ updateMonitorRouting(); }, [monitorEnabled, monitorOnlyDuringRec, monitorGainVal, monitorPanVal, tracks]);
 
-        // ---------- Scheduling with EQ/Reverb/Meters ----------
-        function buildTrackChain(ctx, clipBuffer, audible, ti){
-          const fx = ensureFXGraph();
-          const source = ctx.createBufferSource(); source.buffer = clipBuffer;
-          const low = ctx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 200; low.gain.value = audible.eq.low;
-          const mid = ctx.createBiquadFilter(); mid.type = 'peaking'; mid.Q.value = 0.8; mid.frequency.value = audible.eq.midFreq || 1000; mid.gain.value = audible.eq.mid;
-          const high = ctx.createBiquadFilter(); high.type = 'highshelf'; high.frequency.value = 6000; high.gain.value = audible.eq.high;
-          const gain = ctx.createGain(); gain.gain.value = audible.audible? audible.volume:0;
-          const panner = (ctx.createStereoPanner)? ctx.createStereoPanner(): null; if(panner) panner.pan.value = audible.pan;
-          const sendGain = ctx.createGain(); sendGain.gain.value = clamp(audible.send, 0, 1);
-          const analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
-          source.connect(low); low.connect(mid); mid.connect(high); high.connect(gain);
-          if(panner){ gain.connect(panner); panner.connect(analyser); analyser.connect(fx.masterGain); panner.connect(sendGain); }
-          else { gain.connect(analyser); analyser.connect(fx.masterGain); gain.connect(sendGain); }
-          sendGain.connect(fx.reverbIn);
-          trackAnalysersRef.current[ti] = analyser;
-          return { source };
-        }
-
-        function schedulePlayback({ freshStart=true, excludeIndex=null, startPosSec=0, durationSec=null }={}){
-          const ctx=ensureAudioContext(); ensureFXGraph(); if(freshStart){ stopAllPlayback(); } else if(transportRunningRef.current){ return; }
-          const audible=currentAudibleSet(tracks); const startAt=ctx.currentTime+0.06; currentSourcesRef.current=[];
+        // ---------- Scheduling ----------
+        function schedulePlayback({ freshStart=true, excludeIndex=null, startPosSec=0, durationSec=null, destination=null }={}){
+          const ctx=ensureAudioContext(); if(freshStart){ stopAllPlayback(); } else if(transportRunningRef.current){ return; }
+          const audible=currentAudibleSet(tracks); const startAt=ctx.currentTime+0.05; currentSourcesRef.current=[];
           tracks.forEach((t, ti)=>{
             if(excludeIndex!==null && ti===excludeIndex) return; const clip=t.clips[0]; if(!clip || !clip.buffer) return;
-            const chain = buildTrackChain(ctx, clip.buffer, audible[ti], ti);
-            const totalOffset = ((t.offsetMs||0)+(latencyMs||0))/1000; 
+            const source=ctx.createBufferSource(); source.buffer=clip.buffer; const gain=ctx.createGain(); const panner=(ctx.createStereoPanner)?ctx.createStereoPanner():null; const a=audible[ti]; gain.gain.value=a.audible? a.volume:0; if(panner) panner.pan.value=a.pan;
+            source.connect(gain);
+            const finalDest = destination || (panner ? panner : gain);
+            if(panner){ gain.connect(panner); panner.connect(ctx.destination); if(mixDestRef.current) panner.connect(mixDestRef.current); } else { gain.connect(ctx.destination); if(mixDestRef.current) gain.connect(mixDestRef.current); }
+            const totalOffset = ((t.offsetMs||0)+(latencyMs||0))/1000;
             const when = startAt + Math.max(0, totalOffset);
             const bufferOffset = Math.max(0, startPosSec + Math.max(0, -totalOffset));
-            try{ if(durationSec){ chain.source.start(when, bufferOffset, Math.max(0.001, durationSec)); } else { chain.source.start(when, bufferOffset); } }catch(e){ console.warn('source.start failed', e); }
-            currentSourcesRef.current.push({ source: chain.source, trackIndex:ti });
+            try{ if(durationSec){ source.start(when, bufferOffset, Math.max(0.001, durationSec)); } else { source.start(when, bufferOffset); } }catch(e){ console.warn('source.start failed', e); }
+            currentSourcesRef.current.push({ source, trackIndex:ti });
           });
           transportRunningRef.current=true; startTicker(startPosSec);
           if(loopEnabled && durationSec){ clearLoopTimer(); const ms = (startAt - ctx.currentTime + durationSec) * 1000; loopTimerRef.current = setTimeout(()=>{ if(!transportRunningRef.current) return; schedulePlayback({ freshStart:true, startPosSec, durationSec }); }, ms); }
         }
 
-        // ---------- Record / Overdub + Punch ----------
+        // ---------- Record / Overdub ----------
         async function toggleRecord(i){
           if(!micGranted){ setStatus('Microphone not granted.'); return; }
           const t=tracks[i]; const ctx=ensureAudioContext();
           if(!t.isRecording){
             await ctx.resume();
+            const baseStart = punchEnabled ? Math.max(0, punchInSec - preRollSec) : (loopEnabled ? loopStartSec : playheadSec);
+            const dur = loopEnabled ? Math.max(0.001, loopEndSec - baseStart) : null;
             const spb=60/tempo; const countInSeconds=Math.max(0,countInBars)*sigTop*spb;
-            const doStart = ()=>{
-              const usingPunch = punchEnabled && punchOutSec>punchInSec;
-              const preStart = usingPunch? Math.max(0, punchInSec - preRollSec) : (loopEnabled? loopStartSec : playheadSec);
-              const dur = usingPunch? Math.max(0.001, punchOutSec - preStart) : (loopEnabled? Math.max(0.001, loopEndSec - preStart) : null);
-              schedulePlayback({ freshStart:false, excludeIndex:i, startPosSec:preStart, durationSec:dur });
-              beginMediaRecorder(i, { usingPunch, preStart });
+            const scheduleRec = () => {
+              schedulePlayback({ freshStart:false, excludeIndex:i, startPosSec:baseStart, durationSec:dur });
+              if(punchEnabled){
+                const toIn  = Math.max(0, punchInSec  - baseStart);
+                const toOut = Math.max(0, punchOutSec - baseStart);
+                const delayInMs   = (toIn  + 0.05) * 1000;
+                const delayOutMs = (toOut + 0.05) * 1000;
+                clearPunchTimers();
+                punchTimersRef.current.start = setTimeout(()=>{ beginMediaRecorder(i, true); }, delayInMs);
+                punchTimersRef.current.stop  = setTimeout(()=>{ const recT = tracks[i]; recT?.mediaRecorder?.stop(); }, delayOutMs);
+                setStatus('⏺ Armed for punch…');
+              } else {
+                beginMediaRecorder(i, false);
+              }
             };
-            if(countInSeconds>0){ const startAt=ctx.currentTime+0.02; startClickAt(ctx,startAt); setStatus('🫳 Count‑in…'); setTimeout(doStart, countInSeconds*1000); }
-            else doStart();
+            if(countInSeconds>0){ const startAt=ctx.currentTime+0.02; startClickAt(ctx,startAt); setStatus('🫳 Count‑in…'); setTimeout(scheduleRec, countInSeconds*1000); }
+            else { scheduleRec(); }
           } else {
+            clearPunchTimers();
             t.mediaRecorder?.stop();
           }
         }
 
-        function beginMediaRecorder(i, opts={}){
+        function beginMediaRecorder(i, isPunch=false){
           setupMonitorNodes(); updateMonitorRouting(); const mime=getSupportedMimeType(); const rec=new MediaRecorder(micStreamRef.current,{ mimeType:mime }); const chunks=[];
           rec.ondataavailable=e=>{ if(e.data&&e.data.size>0) chunks.push(e.data); };
-          rec.onstop=async()=>{ disconnectMonitor(); clearRecStopTimer(); const blob=new Blob(chunks,{type:rec.mimeType}); const url=URL.createObjectURL(blob); const ctx=ensureAudioContext(); setStatus('🔎 Decoding…'); let buffer=await blobToAudioBuffer(ctx, blob);
-            const est=(ctx.baseLatency||0)+(ctx.outputLatency||0)+(latencyMs||0)/1000;
-            if(opts.usingPunch){
-              const sliceStart = est + Math.max(0, punchInSec - opts.preStart);
-              const sliceDur = Math.max(0.001, punchOutSec - punchInSec);
-              buffer = sliceAudioBuffer(ctx, buffer, sliceStart, sliceDur);
-            } else {
-              if(est>0) buffer=trimAudioBuffer(ctx, buffer, est);
-            }
-            const clip={ url, blob, buffer };
-            pushHistory('Record take');
-            setTracks(prev=>{ const copy=[...prev]; copy[i]={...copy[i],clips:[...copy[i].clips, clip], isRecording:false, mediaRecorder:null}; return copy; }); setStatus(`💾 Saved clip on Track ${i+1}`);
-          };
+          rec.onstop=async()=>{ disconnectMonitor(); const blob=new Blob(chunks,{type:rec.mimeType}); const url=URL.createObjectURL(blob); const ctx=ensureAudioContext(); setStatus('🔎 Decoding…'); let buffer=await blobToAudioBuffer(ctx, blob); const est=(ctx.baseLatency||0)+(ctx.outputLatency||0)+(latencyMs||0)/1000; if(est>0) buffer=trimAudioBuffer(ctx, buffer, est); const clip={ url, blob, buffer }; setTracks(prev=>{ const copy=[...prev]; copy[i]={...copy[i],clips:[...copy[i].clips, clip], isRecording:false, mediaRecorder:null}; return copy; }); pushHistory('Add clip'); setStatus(`💾 Saved clip on Track ${i+1}`); };
           setTracks(prev=>{ const copy=[...prev]; copy[i]={...copy[i],isRecording:true,mediaRecorder:rec}; return copy; });
-          rec.start(); setStatus(`⏺ Recording Track ${i+1}…`);
-          if(opts.usingPunch){ const ctx=ensureAudioContext(); const preStart=opts.preStart; const ms = Math.max(10, (punchOutSec - preStart + 0.06) * 1000); recStopTimerRef.current = setTimeout(()=>{ try{ rec.stop(); }catch{} }, ms); }
+          rec.start(); setStatus(isPunch? `⏺ Punching Track ${i+1}…` : `⏺ Recording Track ${i+1}…`);
         }
 
-        // ---------- Auto Latency Calibration (unchanged core) ----------
+        // ---------- Auto Latency Calibration ----------
         async function calibrateLatency(){
-          if(isCalibrating) return; const ctx = ensureAudioContext(); if(!micStreamRef.current){ setStatus('❌ Calibrate: grant mic access first.'); return; }
-          setIsCalibrating(true); setStatus('🧪 Calibrating latency… Keep speakers at moderate level or connect loopback.');
+          if(isCalibrating) return;
+          const ctx = ensureAudioContext();
+          if(!micStreamRef.current){ setStatus('❌ Calibrate: grant mic access first.'); return; }
+          setIsCalibrating(true); setStatus('🧪 Calibrating latency… Keep speakers at moderate level or connect loopback cable.');
+
           try{
             stopAllPlayback();
-            const merger = ctx.createChannelMerger(2); const dest = ctx.createMediaStreamDestination(); merger.connect(dest);
-            const sr = ctx.sampleRate; const burstMs = 20; const burstLen = Math.floor(sr * (burstMs/1000));
-            const burstBuf = ctx.createBuffer(1, burstLen, sr); const ch0 = burstBuf.getChannelData(0); for(let i=0;i<burstLen;i++){ ch0[i] = (Math.random()*2-1) * 0.8; }
-            const stimGain = ctx.createGain(); stimGain.gain.value = 0.6; stimGain.connect(merger,0,0); stimGain.connect(ctx.destination);
-            const micSrc = ctx.createMediaStreamSource(micStreamRef.current); const micGain = ctx.createGain(); micGain.gain.value=1.0; micSrc.connect(micGain).connect(merger,0,1);
-            const N=5; const gapMs=250; const startAt=ctx.currentTime+0.25; for(let k=0;k<N;k++){ const s=ctx.createBufferSource(); s.buffer=burstBuf; s.connect(stimGain); s.start(startAt + k*(gapMs/1000)); }
-            const mime = getSupportedMimeType(); const mr = new MediaRecorder(dest.stream, { mimeType: mime }); const chunks=[]; mr.ondataavailable = e=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
-            const totalDurationMs = 250 + N*gapMs + 400; mr.start(); await new Promise(res=> setTimeout(res, totalDurationMs)); await new Promise(res=>{ mr.onstop = res; mr.stop(); });
-            const blob = new Blob(chunks, { type: mime }); const buf = await blobToAudioBuffer(ctx, blob);
-            const A = buf.numberOfChannels>=1 ? buf.getChannelData(0) : null; const B = buf.numberOfChannels>=2 ? buf.getChannelData(1) : null; if(!A || !B) throw new Error('Calibrate: missing channels.');
-            const win = Math.floor(sr * (burstMs/1000)); const E0 = movingEnergy(A, win); const E1 = movingEnergy(B, win); const minDist = Math.floor((gapMs/1000) * sr * 0.6);
-            const p0 = findPeaksFromEnergy(E0, minDist, 0.3).slice(0,N); const p1 = findPeaksFromEnergy(E1, minDist, 0.15).slice(0,N); if(!p0.length || !p1.length) throw new Error('Could not detect pulses.');
-            const pairs = Math.min(p0.length, p1.length); const lags=[]; for(let i=0;i<pairs;i++){ const idx0=p0[i]+Math.floor(win/2); const idx1=p1[i]+Math.floor(win/2); lags.push(idx1-idx0); }
-            lags.sort((a,b)=>a-b); const lagSamples = lags[Math.floor(lags.length/2)]; const ms = (lagSamples/sr)*1000; const msRounded = Math.max(0, Math.round(ms)); setLatencyMs(msRounded); setStatus(`✅ Calibrated latency: ~${msRounded} ms.`);
-          } catch(err){ console.error(err); setStatus(`❌ Calibration failed: ${err.message||err}`); } finally { setIsCalibrating(false); }
+            const merger = ctx.createChannelMerger(2);
+            const dest = ctx.createMediaStreamDestination();
+            merger.connect(dest);
+            const sr = ctx.sampleRate;
+            const burstMs = 20;
+            const burstLen = Math.floor(sr * (burstMs/1000));
+            const burstBuf = ctx.createBuffer(1, burstLen, sr);
+            const ch0 = burstBuf.getChannelData(0);
+            for(let i=0;i<burstLen;i++){ ch0[i] = (Math.random()*2-1) * 0.8; }
+            const stimGain = ctx.createGain(); stimGain.gain.value = 0.6;
+            stimGain.connect(merger, 0, 0);
+            stimGain.connect(ctx.destination);
+            const micSrc = ctx.createMediaStreamSource(micStreamRef.current);
+            const micGain = ctx.createGain(); micGain.gain.value = 1.0;
+            micSrc.connect(micGain).connect(merger, 0, 1);
+            const N = 5; const gapMs = 250;
+            const startAt = ctx.currentTime + 0.25;
+            for(let k=0;k<N;k++){
+              const s = ctx.createBufferSource();
+              s.buffer = burstBuf;
+              s.connect(stimGain);
+              s.start(startAt + k*(gapMs/1000));
+            }
+            const mime = getSupportedMimeType();
+            const mr = new MediaRecorder(dest.stream, { mimeType: mime });
+            const chunks=[]; mr.ondataavailable = e=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
+            const totalDurationMs = 250 + N*gapMs + 400;
+            mr.start();
+            await new Promise(res=> setTimeout(res, totalDurationMs));
+            await new Promise(res=>{ mr.onstop = res; mr.stop(); });
+            const blob = new Blob(chunks, { type: mime });
+            const buf = await blobToAudioBuffer(ctx, blob);
+            const A = buf.numberOfChannels>=1 ? buf.getChannelData(0) : null;
+            const B = buf.numberOfChannels>=2 ? buf.getChannelData(1) : null;
+            if(!A || !B){ throw new Error('Calibrate: missing channels in capture.'); }
+            const win = Math.floor(sr * (burstMs/1000));
+            const E0 = movingEnergy(A, win);
+            const E1 = movingEnergy(B, win);
+            const minDist = Math.floor((gapMs/1000) * sr * 0.6);
+            const p0 = findPeaksFromEnergy(E0, minDist, 0.3).slice(0, N);
+            const p1 = findPeaksFromEnergy(E1, minDist, 0.15).slice(0, N);
+            if(p0.length===0 || p1.length===0){ throw new Error('Calibrate: could not detect pulses. Raise speakers or use loopback.'); }
+            const pairs = Math.min(p0.length, p1.length);
+            const lags = [];
+            for(let i=0;i<pairs;i++){
+              const idx0 = p0[i] + Math.floor(win/2);
+              const idx1 = p1[i] + Math.floor(win/2);
+              lags.push(idx1 - idx0);
+            }
+            lags.sort((a,b)=>a-b);
+            const lagSamples = lags[Math.floor(lags.length/2)];
+            const ms = (lagSamples / sr) * 1000;
+            const msRounded = Math.max(0, Math.round(ms));
+            setLatencyMs(msRounded);
+            setStatus(`✅ Calibrated latency: ~${msRounded} ms (median of ${pairs} pulses).`);
+          } catch(err){
+            console.error(err);
+            setStatus(`❌ Calibration failed: ${err.message||err}`);
+          } finally {
+            setIsCalibrating(false);
+          }
         }
 
-        // ---------- Transport & Ticker ----------
+        // ---------- Transport ----------
         function play(){
           if(tracks.every(t=>!t.clips?.length)){ setStatus('Nothing to play yet.'); return; }
-          const ctx=ensureAudioContext(); ensureFXGraph(); const startAt=ctx.currentTime+0.04; if(clickEnabled) startClickAt(ctx,startAt);
-          const usingLoop = loopEnabled && loopEndSec>loopStartSec; const startPos = usingLoop? loopStartSec : playheadSec;
-          const dur = usingLoop? Math.max(0.001, loopEndSec - startPos) : null;
+          const ctx=ensureAudioContext(); const startAt=ctx.currentTime+0.02; if(clickEnabled) startClickAt(ctx,startAt);
+          const startPos = loopEnabled? loopStartSec: playheadSec;
+          const dur = loopEnabled? Math.max(0.001, loopEndSec - startPos): null;
           schedulePlayback({ freshStart:true, startPosSec:startPos, durationSec:dur }); setStatus('▶️ Playing…');
         }
-        function stop(){ stopAllPlayback(); setStatus('■ Stopped.'); }
+        function stop(){ stopAllPlayback(); // stop any pending punch, and any active recording
+          tracks.forEach(t=>{ if(t.isRecording){ try{ t.mediaRecorder?.stop(); }catch{} } });
+          setStatus('■ Stopped.'); }
         function startTicker(startPos){ const ctx=ensureAudioContext(); transportBaseCtxTimeRef.current = ctx.currentTime; transportStartPosRef.current = startPos||0; cancelAnimationFrame(rafRef.current); const tick=()=>{ const elapsed = (ensureAudioContext().currentTime - transportBaseCtxTimeRef.current) + transportStartPosRef.current; setNowSec(elapsed); rafRef.current = requestAnimationFrame(tick); }; rafRef.current = requestAnimationFrame(tick); }
-        function stopTicker(){ cancelAnimationFrame(rafRef.current); }
+        function stopTicker(){ cancelAnimationFrame(rafRef.current); setNowSec(0); }
 
-        // ---------- Export ----------
-        async function startExport(){ const ctx=ensureAudioContext(); const fx=ensureFXGraph(); mixDestRef.current = ctx.createMediaStreamDestination(); const mime = getSupportedMimeType(); const mr=new MediaRecorder(mixDestRef.current.stream,{mimeType:mime}); mixMediaRecorderRef.current=mr; mixChunksRef.current=[]; mr.ondataavailable=e=>{ if(e.data&&e.data.size>0) mixChunksRef.current.push(e.data); }; mr.onstop=()=>{ const blob=new Blob(mixChunksRef.current,{type:mr.mimeType}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`mix.${blob.type.includes('ogg')?'ogg':'webm'}`; document.body.appendChild(a); a.click(); a.remove(); setStatus('📤 Mix exported.'); mixDestRef.current=null; };
-          fx.masterAnalyser.connect(mixDestRef.current); play(); mr.start(); setStatus('🎚️ Exporting real time… Stop to finish.'); }
-        function finishExportIfAny(){ if(mixMediaRecorderRef.current && mixMediaRecorderRef.current.state!=='inactive'){ try{ mixMediaRecorderRef.current.stop(); }catch{} mixMediaRecorderRef.current=null; } }
+        // ---------- Export/Bounce ----------
+        async function renderProject(targetSampleRate = 44100, isStereo = true){
+          stop();
+          setIsExporting(true);
+          setStatus('🎚️ Rendering audio offline...');
+
+          const projectLength = projectLenSec();
+          const offlineCtx = new OfflineAudioContext(isStereo ? 2 : 1, projectLength * targetSampleRate, targetSampleRate);
+
+          const audible = currentAudibleSet(tracks);
+
+          tracks.forEach((t, i) => {
+            if(!t.clips.length) return;
+            const clip = t.clips[0];
+            const source = offlineCtx.createBufferSource();
+            source.buffer = clip.buffer;
+
+            const gain = offlineCtx.createGain();
+            const panner = isStereo && (offlineCtx.createStereoPanner) ? offlineCtx.createStereoPanner() : null;
+
+            gain.gain.value = audible[i].audible ? audible[i].volume : 0;
+            if(panner) panner.pan.value = audible[i].pan;
+
+            source.connect(gain);
+            if(panner) gain.connect(panner);
+
+            const finalNode = panner || gain;
+            finalNode.connect(offlineCtx.destination);
+
+            const totalOffset = ((t.offsetMs || 0) + (latencyMs || 0)) / 1000;
+            source.start(Math.max(0, totalOffset), 0, Math.max(0, source.buffer.duration - totalOffset));
+          });
+
+          const renderedBuffer = await offlineCtx.startRendering();
+          setIsExporting(false);
+          return renderedBuffer;
+        }
+
+        async function exportMixdown(){
+          try{
+            const renderedBuffer = await renderProject(mixSampleRate, true);
+            const wavBlob = audioBufferToWavBlob(renderedBuffer, true);
+            const url = URL.createObjectURL(wavBlob);
+            const a = document.createElement('a'); a.href = url; a.download = 'mixdown.wav'; document.body.appendChild(a); a.click(); a.remove();
+            setStatus('📤 Mixdown exported as WAV.');
+          } catch(e) {
+            setStatus('❌ Export failed: ' + e.message);
+          }
+        }
+
+        async function exportStems(){
+          try{
+            setStatus('📤 Exporting stems...');
+            const zip = new JSZip();
+            let totalClips = 0;
+
+            for(const [i, track] of tracks.entries()){
+              if(track.clips.length > 0){
+                const clip = track.clips[0];
+                if(clip.buffer){
+                  const wavBlob = audioBufferToWavBlob(clip.buffer, clip.buffer.numberOfChannels > 1);
+                  zip.file(`track_${i+1}.wav`, wavBlob);
+                  totalClips++;
+                }
+              }
+            }
+
+            const content = await zip.generateAsync({type:"blob"});
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a'); a.href = url; a.download = 'stems.zip'; document.body.appendChild(a); a.click(); a.remove();
+            setStatus(`📤 Exported ${totalClips} stem(s) as a zip.`);
+          } catch(e) {
+            setStatus('❌ Stem export failed: ' + e.message);
+          }
+        }
+
+        async function bounceToNewTrack(){
+          try {
+            const renderedBuffer = await renderProject(44100, true);
+            const newTrackIndex = tracks.findIndex(t => t.clips.length === 0);
+            if(newTrackIndex === -1){
+              setStatus('❌ No empty track to bounce to.');
+              return;
+            }
+            const blob = new Blob([renderedBuffer], {type: 'audio/wav'});
+            const url = URL.createObjectURL(blob);
+            const clip = { url, blob, buffer: renderedBuffer };
+            setTracks(prev => {
+              const copy = [...prev];
+              copy[newTrackIndex].clips = [clip];
+              copy[newTrackIndex].name = "Bounce";
+              return copy;
+            });
+            pushHistory('Bounce to new track');
+            setStatus(`🎚️ Bounced mix to Track ${newTrackIndex + 1}.`);
+          } catch(e) {
+            setStatus('❌ Bounce failed: ' + e.message);
+          }
+        }
+
+        // ---------- Persistence: Save/Load Project ----------
+        async function saveProject(){
+          try{
+            setStatus('💾 Saving project...');
+            const project = {
+              tracks: tracks.map(t => ({
+                ...t,
+                clips: t.clips.map(c => ({
+                  url: null, // URLs are temporary
+                  blob: null,
+                  buffer: c.buffer ? c.buffer.getChannelData(0).buffer : null, // Store raw data
+                  duration: c.buffer?.duration
+                })),
+                mediaRecorder: null
+              })),
+              globals: {
+                tempo, sigTop, sigBottom, countInBars, clickEnabled, clickVol, latencyMs,
+                monitorEnabled, monitorOnlyDuringRec, monitorGainVal, monitorPanVal,
+                loopEnabled, loopStartSec, loopEndSec, playheadSec,
+                punchEnabled, punchInSec, punchOutSec, preRollSec,
+                markers: [...markers], markerAId, markerBId, mixSampleRate
+              }
+            };
+            await saveProjectToDb(project);
+            setStatus('✅ Project saved to browser storage.');
+          } catch(e) {
+            setStatus('❌ Save failed: ' + e.message);
+          }
+        }
+
+        async function loadProject(){
+          try{
+            setStatus('📂 Loading project...');
+            const project = await loadProjectFromDb();
+            if(!project){ setStatus('❌ No saved project found.'); return; }
+
+            const ctx = ensureAudioContext();
+            const loadedTracks = await Promise.all(project.tracks.map(async t => {
+              const loadedClips = await Promise.all(t.clips.map(async c => {
+                if(c.buffer){
+                  const audioBuffer = await ctx.decodeAudioData(c.buffer.slice(0));
+                  const blob = new Blob([c.buffer], { type: 'audio/wav' });
+                  return {
+                    url: URL.createObjectURL(blob),
+                    blob: blob,
+                    buffer: audioBuffer,
+                    duration: audioBuffer.duration
+                  };
+                }
+                return c;
+              }));
+              return { ...t, clips: loadedClips };
+            }));
+
+            setTracks(loadedTracks);
+            applySnapshot(project);
+            setStatus('✅ Project loaded.');
+            pushHistory('Load');
+          } catch(e) {
+            setStatus('❌ Load failed: ' + e.message);
+          }
+        }
+
+        async function exportProjectZip(){
+          try {
+            setStatus('📤 Exporting project to zip...');
+            const zip = new JSZip();
+            const project = {
+              tracks: tracks.map(t => ({
+                ...t,
+                clips: t.clips.map(c => ({
+                  url: null,
+                  blob: null,
+                  bufferName: c.buffer ? `clip_${c.id}.pcm` : null, // A reference to the file
+                  duration: c.buffer?.duration
+                })),
+                mediaRecorder: null
+              })),
+              globals: makeSnapshot().globals
+            };
+
+            zip.file('project.json', JSON.stringify(project, null, 2));
+
+            for(const [i, track] of tracks.entries()){
+              for(const [j, clip] of track.clips.entries()){
+                if(clip.buffer){
+                  const pcmData = clip.buffer.getChannelData(0).buffer;
+                  zip.file(`clip_${i+1}_${j}.pcm`, pcmData);
+                }
+              }
+            }
+
+            const content = await zip.generateAsync({type:"blob"});
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a'); a.href = url; a.download = 'project.zip'; document.body.appendChild(a); a.click(); a.remove();
+            setStatus('✅ Project exported as zip.');
+          } catch(e) {
+            setStatus('❌ Export failed: ' + e.message);
+          }
+        }
+
+        async function importProjectZip(event){
+          try{
+            setStatus('📂 Importing project...');
+            const file = event.target.files[0];
+            if(!file) return;
+
+            const zip = new JSZip();
+            const content = await zip.loadAsync(file);
+            const projectJsonFile = content.file('project.json');
+            if(!projectJsonFile){
+              throw new Error('project.json not found in zip.');
+            }
+            const project = JSON.parse(await projectJsonFile.async('string'));
+
+            const ctx = ensureAudioContext();
+            const loadedTracks = await Promise.all(project.tracks.map(async t => {
+              const loadedClips = await Promise.all(t.clips.map(async c => {
+                if(c.bufferName){
+                  const pcmFile = content.file(c.bufferName);
+                  if(!pcmFile) throw new Error(`PCM file not found: ${c.bufferName}`);
+
+                  const pcmData = await pcmFile.async('arraybuffer');
+                  const audioBuffer = ctx.createBuffer(1, pcmData.byteLength / 4, 44100);
+                  audioBuffer.getChannelData(0).set(new Float32Array(pcmData));
+
+                  const blob = new Blob([pcmData], {type: 'audio/wav'});
+                  return {
+                    url: URL.createObjectURL(blob),
+                    blob: blob,
+                    buffer: audioBuffer,
+                    duration: audioBuffer.duration
+                  };
+                }
+                return c;
+              }));
+              return { ...t, clips: loadedClips };
+            }));
+
+            setTracks(loadedTracks);
+            applySnapshot(project);
+            setStatus('✅ Project imported.');
+            pushHistory('Import');
+          } catch(e) {
+            setStatus('❌ Import failed: ' + e.message);
+          }
+        }
 
         // ---------- Track helpers & stereo link ----------
         function isLeft(i){ return i%2===0; }
-        function pushHistory(label){ if(applyingSnapshotRef.current) return; const now=Date.now(); if(now - lastHistoryTsRef.current < 400) return; lastHistoryTsRef.current = now; try{ const snap = makeSnapshot(); historyRef.current.push(snap); futureRef.current = []; }catch(e){ console.warn('History snapshot failed', e); } }
-        function makeSnapshot(){
-          return {
-            tracks: tracks.map(t=>({ ...t, clips: t.clips.map(c=>({ url:c.url, blob:c.blob||null })) })),
-            globals: { reverbWet, reverbDecay, loopEnabled, loopStartSec, loopEndSec, playheadSec, punchEnabled, punchInSec, punchOutSec, preRollSec, markers:[...markers], markerAId, markerBId }
-          };
-        }
-        function applySnapshot(s){ applyingSnapshotRef.current=true; try{
-          setTracks(s.tracks.map(t=>({ ...t, clips: t.clips.map(c=>({ ...c, buffer: null })) })));
-          const g=s.globals||{}; setReverbWet(g.reverbWet??reverbWet); setReverbDecay(g.reverbDecay??reverbDecay); setLoopEnabled(!!g.loopEnabled); setLoopStartSec(g.loopStartSec??0); setLoopEndSec(g.loopEndSec??0); setPlayheadSec(g.playheadSec??0); setPunchEnabled(!!g.punchEnabled); setPunchInSec(g.punchInSec??punchInSec); setPunchOutSec(g.punchOutSec??punchOutSec); setPreRollSec(g.preRollSec??preRollSec); setMarkers(g.markers||[]); setMarkerAId(g.markerAId??null); setMarkerBId(g.markerBId??null);
-        } finally { applyingSnapshotRef.current=false; } }
-        function undo(){ if(!historyRef.current.length) return; const curr = makeSnapshot(); futureRef.current.push(curr); const prev = historyRef.current.pop(); applySnapshot(prev); }
-        function redo(){ if(!futureRef.current.length) return; const curr = makeSnapshot(); historyRef.current.push(curr); const next = futureRef.current.pop(); applySnapshot(next); }
-
-        function setTrack(i, patch){ pushHistory('Param change'); setTracks(prev=>{ const copy=[...prev]; const t={...copy[i], ...patch}; copy[i]=t; if(isLeft(i) && t.linkNextStereo){ const j=i+1; if(copy[j]){ const mirror={ volume:t.volume, mute:t.mute, solo:t.solo, offsetMs:t.offsetMs, send:t.send, eq:{...copy[j].eq} }; copy[i].pan = -1; copy[j] = { ...copy[j], ...mirror, pan: 1 }; } } if(!isLeft(i)){ const j=i-1; if(copy[j]?.linkNextStereo){ const L=copy[j]; copy[i] = { ...copy[i], volume:L.volume, mute:L.mute, solo:L.solo, offsetMs:L.offsetMs, pan:1, send:L.send }; } } return copy; }); }
-        function toggleLink(i){ if(!isLeft(i)) return; pushHistory('Toggle link'); setTracks(prev=>{ const copy=[...prev]; const cur=copy[i].linkNextStereo; copy[i].linkNextStereo = !cur; const j=i+1; if(copy[j]){ if(!cur){ copy[i].pan = -1; copy[j].pan = 1; copy[j].volume = copy[i].volume; copy[j].mute = copy[i].mute; copy[j].solo = copy[i].solo; copy[j].offsetMs = copy[i].offsetMs; copy[j].send = copy[i].send; } } return copy; }); }
+        function setTrack(i, patch){ pushHistory('Param change'); setTracks(prev=>{ const copy=[...prev]; const t={...copy[i], ...patch}; copy[i]=t; if(isLeft(i) && t.linkNextStereo){ const j=i+1; if(copy[j]){ const mirror={ volume:t.volume, mute:t.mute, solo:t.solo, offsetMs:t.offsetMs }; copy[i].pan = -1; copy[j] = { ...copy[j], ...mirror, pan: 1 }; } } if(!isLeft(i)){ const j=i-1; if(copy[j]?.linkNextStereo){ const L=copy[j]; copy[i] = { ...copy[i], volume:L.volume, mute:L.mute, solo:L.solo, offsetMs:L.offsetMs, pan:1 }; } } return copy; }); }
+        function toggleLink(i){ if(!isLeft(i)) return; pushHistory('Toggle link'); setTracks(prev=>{ const copy=[...prev]; const cur=copy[i].linkNextStereo; copy[i].linkNextStereo = !cur; const j=i+1; if(copy[j]){ if(!cur){ copy[i].pan = -1; copy[j].pan = 1; copy[j].volume = copy[i].volume; copy[j].mute = copy[i].mute; copy[j].solo = copy[i].solo; copy[j].offsetMs = copy[i].offsetMs; } } return copy; }); }
         function deleteClip(i,ci){ pushHistory('Delete clip'); setTracks(prev=>{ const copy=[...prev]; const t={...copy[i]}; t.clips=t.clips.filter((_,k)=>k!==ci); copy[i]=t; return copy; }); }
+
+        // ---------- Markers ----------
+        function addMarkerAt(time, name){ const id = Math.random().toString(36).slice(2,9); const m = { id, time:Math.max(0,time), name:name||`M${markers.length+1}` }; setMarkers(prev=>{ const next=[...prev, m].sort((a,b)=>a.time-b.time); return next; }); pushHistory('Add marker'); }
+        function removeMarker(id){ setMarkers(prev=>prev.filter(m=>m.id!==id)); pushHistory('Remove marker'); }
+        function goToMarker(id){ const m = markers.find(x=>x.id===id); if(!m) return; setPlayheadSec(m.time); setStatus(`🔖 Go to ${m.name}`); }
+        function loopBetweenMarkers(){ const A=markers.find(m=>m.id===markerAId); const B=markers.find(m=>m.id===markerBId); if(!A||!B) return; const a=Math.min(A.time,B.time), b=Math.max(A.time,B.time); setLoopStartSec(a); setLoopEndSec(b); setLoopEnabled(true); setStatus(`🔁 Loop ${a.toFixed(2)}–${b.toFixed(2)}s`); pushHistory('Loop A↔B'); }
 
         // decode any blobs missing buffers
         useEffect(()=>{ async function decodeMissing(){ const ctx=audioCtxRef.current || new (window.AudioContext||window.webkitAudioContext)(); const next=tracks.map(t=>({...t})); let changed=false; for(let i=0;i<next.length;i++){ for(let ci=0;ci<next[i].clips.length;ci++){ const c=next[i].clips[ci]; if(c.blob && !c.buffer){ try{ c.buffer=await blobToAudioBuffer(ctx, c.blob); changed=true; }catch(e){ console.warn('Could not decode existing clip', e); } } } } if(changed) setTracks(next); } if(tracks.some(t=>t.clips.some(c=>c.blob && !c.buffer))){ decodeMissing(); } }, [tracks]);
 
-        // ---------- Presets ----------
-        function applyPreset(name){ pushHistory('Preset '+name); const presets = { 'Flat & Dry': { eq:{low:0, mid:0, high:0, midFreq:1000}, send:0.0, wet:0.1, decay:1.2 }, 'Vocal Airy': { eq:{low:-2, mid:-1, high:+4, midFreq:2000}, send:0.25, wet:0.25, decay:2.2 }, 'Guitar Warm Room': { eq:{low:+2, mid:+1, high:-1, midFreq:800}, send:0.18, wet:0.18, decay:1.6 }, }; const p = presets[name] || presets['Flat & Dry']; setTracks(prev=> prev.map(t=> ({...t, eq:{...t.eq, ...p.eq}, send:p.send}))); setReverbWet(p.wet); setReverbDecay(p.decay); setPreset(name); }
-
-        // ---------- Markers helpers ----------
-        function addMarkerAt(tSec, label){ const id = Date.now()+Math.random(); const m = { id, t: Math.max(0, tSec), label: label || `M${markers.length+1}` }; pushHistory('Add marker'); setMarkers(prev=> [...prev, m].sort((a,b)=>a.t-b.t)); }
-        function gotoMarker(id){ const m = markers.find(x=>x.id===id); if(!m) return; setPlayheadSec(m.t); setNowSec(m.t); stop(); }
-        function prevMarker(){ if(!markers.length) return; const t=playheadSec; const prev = [...markers].filter(m=>m.t < t).pop() || markers[markers.length-1]; setPlayheadSec(prev.t); setNowSec(prev.t); stop(); }
-        function nextMarker(){ if(!markers.length) return; const t=playheadSec; const next = markers.find(m=>m.t > t) || markers[0]; setPlayheadSec(next.t); setNowSec(next.t); stop(); }
-        function setLoopAB(){ const A = markers.find(m=>m.id===markerAId); const B = markers.find(m=>m.id===markerBId); if(!A||!B) return; const a=Math.min(A.t,B.t), b=Math.max(A.t,B.t); setLoopStartSec(a); setLoopEndSec(b); setLoopEnabled(true); setPlayheadSec(a); setNowSec(a); }
-
-        // ---------- Meter update ----------
-        const tempBuf = useRef(new Float32Array(2048));
-        function analyserPeak(an){ if(!an) return 0; const arr=tempBuf.current; an.getFloatTimeDomainData(arr); let peak=0; for(let i=0;i<an.fftSize;i++){ const v=Math.abs(arr[i]); if(v>peak) peak=v; } return peak; }
-        function updateMeters(){ const peaks = trackAnalysersRef.current.map(an => analyserPeak(an)); setTrackPeaks(prev => peaks.map((v,i)=> Math.max(v, prev[i]*0.85))); const masterAn = fxRef.current?.masterAnalyser; const m = analyserPeak(masterAn); setMasterPeak(prev => Math.max(m, prev*0.85)); }
-
-        // ---------- Timeline interactions ----------
-        function onTimelineClick(e){ const rect=e.currentTarget.getBoundingClientRect(); const x = e.clientX - rect.left; const ratio = clamp(x/rect.width,0,1); const t = ratio * Math.max(1, projectLenSec()); setPlayheadSec(t); setNowSec(t); if(transportRunningRef.current){ stop(); } }
-
         // ---------- Render ----------
         const maxSec = projectLenSec();
-        const tickSeconds = Math.min(60, Math.ceil(maxSec));
+        const tickSeconds = Math.min(60, Math.ceil(maxSec)); // up to 60 labels
         const labels = []; for(let s=0; s<=tickSeconds; s+=5){ labels.push(s); }
-        const displayHead = transportRunningRef.current ? nowSec : playheadSec;
+
+        function timelineClick(e){ const rect=e.currentTarget.getBoundingClientRect(); const x=e.clientX-rect.left; const ratio=clamp(x/rect.width,0,1); const t=ratio*maxSec; setPlayheadSec(t); setStatus(`⏱️ Playhead = ${t.toFixed(3)}s`); }
 
         return (
           <div>
             <h1>🎚️ Eight‑Track Recorder</h1>
-            <p className="sub">Day 4: <strong>Punch‑in/out with pre‑roll</strong> • <strong>Markers</strong> with go‑to & loop A↔B • <strong>Undo/Redo</strong> (clips & params) • All Day 3 FX/Mixer preserved.</p>
+            <p className="sub">Day 5: <strong>Export & Persistence</strong> • <strong>Bounce to new track</strong> • <strong>WAV mixdown</strong>.</p>
 
-            {/* Transport + master meter */}
+            {/* Transport strip */}
             <div className="card">
               <div className="bar" style={{justifyContent:'space-between'}}>
                 <div className="bar">
-                  <button className="btn green" onClick={play} disabled={isCalibrating}>▶︎ Play</button>
-                  <button className="btn gray" onClick={()=>{ stop(); finishExportIfAny(); }} disabled={isCalibrating}>■ Stop</button>
-                  <button className="btn" onClick={startExport} disabled={isCalibrating || tracks.every(t=>!t.clips?.length)}>📤 Quick Mix</button>
                   <button className="btn" onClick={undo}>↶ Undo</button>
                   <button className="btn" onClick={redo}>↷ Redo</button>
+                  <button className="btn green" onClick={play} disabled={isCalibrating || isExporting}>▶︎ Play</button>
+                  <button className="btn gray" onClick={()=>{ stop(); }} disabled={isCalibrating || isExporting}>■ Stop</button>
                   <span className="pill">Time</span>
-                  <span className="mono" style={{fontSize:'14px'}}>{fmtTime(displayHead)}</span>
+                  <span className="mono" style={{fontSize:'14px'}}>{fmtTime(nowSec)}</span>
+                  <span className="pill">Playhead</span>
+                  <span className="mono" style={{fontSize:'14px'}}>{fmtTime(playheadSec)}</span>
                 </div>
-                <div className="bar" style={{minWidth:260}}>
-                  <span className="pill">Master</span>
-                  <div className="meter" style={{width:200}}>
-                    <div className={`meterFill ${masterPeak>0.9?'hot':''}`} style={{width:`${clamp(masterPeak,0,1)*100}%`}}></div>
-                  </div>
+                <div className="bar">
+                  <label className="bar" style={{gap:6}}>
+                    <input type="checkbox" checked={loopEnabled} onChange={e=>{ setLoopEnabled(e.target.checked); pushHistory('Loop toggle'); }} /> Loop
+                  </label>
+                  <label>Start (s)</label>
+                  <input type="number" value={loopStartSec} min={0} step={0.001} onChange={e=>{ setLoopStartSec(clamp(+e.target.value||0,0,9999)); pushHistory('Loop start'); }} style={{width:100}}/>
+                  <label>End (s)</label>
+                  <input type="number" value={loopEndSec} min={0} step={0.001} onChange={e=>{ setLoopEndSec(clamp(+e.target.value||0,0,9999)); pushHistory('Loop end'); }} style={{width:100}}/>
                 </div>
               </div>
               <div className="hr"></div>
-              {/* Timeline */}
-              <div className="timeline" onClick={onTimelineClick} title="Click to move playhead">
+              {/* Timeline ruler */}
+              <div className="timeline" onClick={timelineClick} title="Click to set playhead">
                 <div className="ticks"></div>
                 <div className="tickLabels">
                   {labels.map(s=> (
                     <span key={s} style={{left: `${(s/Math.max(1,maxSec))*100}%`}}>{s}s</span>
                   ))}
                 </div>
-                {/* Punch visuals */}
                 {punchEnabled && (
-                  <>
-                    <div className="punchRegion" style={{left:`${(punchInSec/Math.max(1,maxSec))*100}%`, width:`${(Math.max(punchOutSec-punchInSec,0)/Math.max(1,maxSec))*100}%`}}></div>
-                    <div className="preRoll" style={{left:`${(Math.max(0,punchInSec-preRollSec)/Math.max(1,maxSec))*100}%`, width:`${(Math.min(preRollSec,punchInSec)/Math.max(1,maxSec))*100}%`}}></div>
-                  </>
+                  <div className="punchRegion" style={{left:`${(clamp(punchInSec,0,maxSec)/Math.max(1,maxSec))*100}%`, width:`${(Math.max(punchOutSec-punchInSec,0)/Math.max(1,maxSec))*100}%`}}></div>
                 )}
-                {/* Loop */}
                 {loopEnabled && (
                   <div className="loopRegion" style={{left:`${(loopStartSec/Math.max(1,maxSec))*100}%`, width:`${(Math.max(loopEndSec-loopStartSec,0)/Math.max(1,maxSec))*100}%`}}></div>
                 )}
-                {/* Markers */}
                 {markers.map(m=> (
-                  <div key={m.id} style={{left:`${(m.t/Math.max(1,maxSec))*100}%`}}>
-                    <div className="marker"></div>
-                    <div className="markerLabel">{m.label}</div>
+                  <div key={m.id} className="marker" style={{left:`${(clamp(m.time,0,maxSec)/Math.max(1,maxSec))*100}%`}}>
+                    <i></i><span>{m.name}</span>
                   </div>
                 ))}
-                <div className="playhead" style={{left:`${(clamp(displayHead,0,maxSec)/Math.max(1,maxSec))*100}%`}}></div>
+                <div className="playhead" style={{left:`${(clamp(nowSec,0,maxSec)/Math.max(1,maxSec))*100}%`}}></div>
               </div>
             </div>
 
-            {/* Setup + FX + Editing */}
+            {/* Setup */}
             <div className="card">
-              <div className="bar" style={{justifyContent:'space-between', alignItems:'flex-start'}}>
+              <div className="bar">
+                <label className="nowrap">Input:</label>
+                <select value={selectedDevice} onChange={e=>setSelectedDevice(e.target.value)}>
+                  {devices.map(d=>(<option key={d.deviceId} value={d.deviceId}>{d.label||'Unknown device'}</option>))}
+                </select>
+                <button className="btn primary" onClick={requestMicrophone}>Grant mic access</button>
+                <span className="pill">Click</span>
+                <label>Tempo</label><input type="number" min="20" max="300" value={tempo} onChange={e=>setTempo(+e.target.value||60)} style={{width:80}}/>
+                <label>Sig</label><input type="number" min="1" max="12" value={sigTop} onChange={e=>setSigTop(+e.target.value||4)} style={{width:56}}/>/<input type="number" min="1" max="16" value={sigBottom} onChange={e=>setSigBottom(+e.target.value||4)} style={{width:56}}/>
+                <label>Count‑in</label><input type="number" min="0" max="8" value={countInBars} onChange={e=>setCountInBars(Math.max(0,+e.target.value||0))} style={{width:70}}/>
+                <label className="bar" style={{gap:6}}><input type="checkbox" checked={clickEnabled} onChange={e=>setClickEnabled(e.target.checked)} />Enable</label>
+                <label>Click Vol</label><input type="range" min="0" max="1" step="0.01" value={clickVol} onChange={e=>setClickVol(+e.target.value)} style={{width:160}}/>
+                <label>Latency (ms)</label><input type="number" value={latencyMs} onChange={e=>setLatencyMs(+e.target.value||0)} style={{width:88}}/>
+                <button className="btn" onClick={calibrateLatency} disabled={!micGranted || isCalibrating}>{isCalibrating? 'Calibrating…' : 'Calibrate'}</button>
+                <span className="mini">{status}</span>
+              </div>
+            </div>
+
+            {/* Punch & Markers */}
+            <div className="card">
+              <div className="bar" style={{justifyContent:'space-between'}}>
                 <div className="bar">
-                  <label className="nowrap">Input:</label>
-                  <select value={selectedDevice} onChange={e=>setSelectedDevice(e.target.value)}>
-                    {devices.map(d=>(<option key={d.deviceId} value={d.deviceId}>{d.label||'Unknown device'}</option>))}
-                  </select>
-                  <button className="btn primary" onClick={requestMicrophone}>Grant mic access</button>
-                  <span className="pill">Click</span>
-                  <label>Tempo</label><input type="number" min="20" max="300" value={tempo} onChange={e=>setTempo(+e.target.value||60)} style={{width:80}}/>
-                  <label>Sig</label><input type="number" min="1" max="12" value={sigTop} onChange={e=>setSigTop(+e.target.value||4)} style={{width:56}}/>/<input type="number" min="1" max="16" value={sigBottom} onChange={e=>setSigBottom(+e.target.value||4)} style={{width:56}}/>
-                  <label>Count‑in</label><input type="number" min="0" max="8" value={countInBars} onChange={e=>setCountInBars(Math.max(0,+e.target.value||0))} style={{width:70}}/>
-                  <label className="bar" style={{gap:6}}><input type="checkbox" checked={clickEnabled} onChange={e=>setClickEnabled(e.target.checked)} />Enable</label>
-                  <label>Click Vol</label><input type="range" min="0" max="1" step="0.01" value={clickVol} onChange={e=>setClickVol(+e.target.value)} style={{width:160}}/>
-                  <label>Latency (ms)</label><input type="number" value={latencyMs} onChange={e=>setLatencyMs(+e.target.value||0)} style={{width:88}}/>
-                  <button className="btn" onClick={calibrateLatency} disabled={!micGranted || isCalibrating}>{isCalibrating? 'Calibrating…' : 'Calibrate'}</button>
-                  <span className="mini">{status}</span>
+                  <span className="pill">Punch</span>
+                  <label><input type="checkbox" checked={punchEnabled} onChange={e=>{ setPunchEnabled(e.target.checked); pushHistory('Punch toggle'); }}/> Enabled</label>
+                  <label>In (s)</label><input type="number" min="0" step="0.001" value={punchInSec} onChange={e=>{ setPunchInSec(clamp(+e.target.value||0,0,9999)); pushHistory('Punch In'); }} style={{width:90}}/>
+                  <label>Out (s)</label><input type="number" min="0" step="0.001" value={punchOutSec} onChange={e=>{ setPunchOutSec(clamp(+e.target.value||0,0,9999)); pushHistory('Punch Out'); }} style={{width:90}}/>
+                  <label>Pre‑roll (s)</label><input type="number" min="0" step="0.001" value={preRollSec} onChange={e=>{ setPreRollSec(Math.max(0,+e.target.value||0)); pushHistory('Pre‑roll'); }} style={{width:110}}/>
                 </div>
-
-                <div className="bar" style={{flexWrap:'wrap',maxWidth:520}}>
-                  <span className="pill">FX & Presets</span>
-                  <label>Preset</label>
-                  <select value={preset} onChange={e=>applyPreset(e.target.value)}>
-                    <option>Flat & Dry</option>
-                    <option>Vocal Airy</option>
-                    <option>Guitar Warm Room</option>
-                  </select>
-                  <label>Reverb Wet</label><input type="range" min="0" max="1" step="0.01" value={reverbWet} onChange={e=>setReverbWet(+e.target.value)} style={{width:160}}/>
-                  <label>Decay (s)</label><input type="number" min="0.2" max="12" step="0.1" value={reverbDecay} onChange={e=>setReverbDecay(+e.target.value||1.8)} style={{width:90}}/>
-                </div>
-
-                <div className="bar" style={{flexWrap:'wrap',maxWidth:520}}>
-                  <span className="pill">Editing</span>
-                  <label><input type="checkbox" checked={punchEnabled} onChange={e=>setPunchEnabled(e.target.checked)} /> Punch</label>
-                  <label>In (s)</label><input type="number" min="0" value={punchInSec} onChange={e=>setPunchInSec(clamp(+e.target.value||0,0,9999))} style={{width:80}}/>
-                  <label>Out (s)</label><input type="number" min="0" value={punchOutSec} onChange={e=>setPunchOutSec(clamp(+e.target.value||0,0,9999))} style={{width:80}}/>
-                  <label>Pre‑roll (s)</label><input type="number" min="0" step="0.1" value={preRollSec} onChange={e=>setPreRollSec(Math.max(0,+e.target.value||0))} style={{width:90}}/>
+                <div className="bar">
                   <span className="pill">Markers</span>
-                  <button className="btn" onClick={()=>addMarkerAt(displayHead)}>Add @ Now</button>
-                  <button className="btn" onClick={prevMarker}>◀ Prev</button>
-                  <button className="btn" onClick={nextMarker}>Next ▶</button>
+                  <button className="btn" onClick={()=>addMarkerAt(playheadSec)}>Add @ Playhead</button>
+                  <label>Go to</label>
+                  <select onChange={e=>goToMarker(e.target.value)} defaultValue="">
+                    <option value="" disabled>Choose…</option>
+                    {markers.map(m=> <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
                   <label>A</label>
-                  <select value={markerAId||''} onChange={e=>setMarkerAId(e.target.value? Number(e.target.value):null)}>
-                    <option value="">—</option>
-                    {markers.map(m=>(<option key={m.id} value={m.id}>{m.label}</option>))}
+                  <select value={markerAId||''} onChange={e=>{ setMarkerAId(e.target.value||null); pushHistory('Set A'); }}>
+                    <option value="">(none)</option>
+                    {markers.map(m=> <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                   <label>B</label>
-                  <select value={markerBId||''} onChange={e=>setMarkerBId(e.target.value? Number(e.target.value):null)}>
-                    <option value="">—</option>
-                    {markers.map(m=>(<option key={m.id} value={m.id}>{m.label}</option>))}
+                  <select value={markerBId||''} onChange={e=>{ setMarkerBId(e.target.value||null); pushHistory('Set B'); }}>
+                    <option value="">(none)</option>
+                    {markers.map(m=> <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
-                  <button className="btn" onClick={setLoopAB} disabled={!markerAId||!markerBId}>Loop A↔B</button>
+                  <button className="btn" onClick={loopBetweenMarkers} disabled={!markerAId || !markerBId}>Loop A↔B</button>
                 </div>
+              </div>
+            </div>
+
+            {/* Export/Persistence */}
+            <div className="card">
+              <div className="bar">
+                <span className="pill">Export & Persistence</span>
+                <label>Sample Rate</label>
+                <select value={mixSampleRate} onChange={e=>setMixSampleRate(+e.target.value)}>
+                  <option value={44100}>44.1 kHz</option>
+                  <option value={48000}>48 kHz</option>
+                </select>
+                <button className="btn" onClick={exportMixdown} disabled={isExporting}>Export Mixdown</button>
+                <button className="btn" onClick={exportStems} disabled={isExporting}>Export Stems</button>
+                <button className="btn" onClick={saveProject}>Save Project</button>
+                <button className="btn" onClick={loadProject}>Load Project</button>
+                <button className="btn" onClick={exportProjectZip}>Export .zip</button>
+                <label for="importZipFile" class="btn">Import .zip</label>
+                <input type="file" id="importZipFile" style={{display:'none'}} onChange={importProjectZip} accept=".zip"/>
               </div>
             </div>
 
@@ -559,7 +1113,6 @@
             {tracks.map((t,i)=>{
               const rightLinked = (!(i%2===0)) && tracks[i-1]?.linkNextStereo;
               const leftLinked  = (i%2===0) && t.linkNextStereo;
-              const peak = trackPeaks[i] || 0;
               return (
                 <div key={i} className="card">
                   <div className="row">
@@ -585,32 +1138,14 @@
                       <input className="pan" type="range" min="-1" max="1" step="0.01" value={t.pan} disabled={tracks[i]?.linkNextStereo || rightLinked} onChange={e=>setTrack(i,{pan:+e.target.value})}/>
                     </div>
 
-                    <div className="bar" style={{gap:6}}>
+                    <div className="bar" style={{gap:6,justifyContent:'flex-end'}}>
                       <label className="mini">Offset (ms)</label>
                       <input type="number" value={t.offsetMs} onChange={e=>setTrack(i,{offsetMs:+e.target.value||0})} style={{width:90}}/>
                     </div>
-
-                    {/* Meter */}
-                    <div className="bar" style={{alignItems:'center'}}>
-                      <div className="meter" style={{width:130}}>
-                        <div className={`meterFill ${peak>0.9?'hot':''}`} style={{width:`${clamp(peak,0,1)*100}%`}}></div>
-                      </div>
-                    </div>
-
+                    <div className="mini" style={{textAlign:'center'}}>{t.clips?.length||0} clip{(t.clips?.length||0)===1?'':'s'}</div>
                     <div style={{display:'flex',justifyContent:'flex-end'}}>
                       <button className={`btn ${t.isRecording?'red':''}`} onClick={()=>toggleRecord(i)} disabled={isCalibrating}>● Rec</button>
                     </div>
-                  </div>
-
-                  {/* EQ & Send */}
-                  <div className="bar" style={{flexWrap:'wrap',gap:10,marginTop:6}}>
-                    <span className="pill">EQ</span>
-                    <label>Low (dB)</label><input type="range" min="-12" max="12" step="0.5" value={t.eq.low} onChange={e=>setTrack(i,{eq:{...t.eq, low:+e.target.value}})} style={{width:120}}/>
-                    <label>Mid (dB)</label><input type="range" min="-12" max="12" step="0.5" value={t.eq.mid} onChange={e=>setTrack(i,{eq:{...t.eq, mid:+e.target.value}})} style={{width:120}}/>
-                    <label>Mid Freq (Hz)</label><input type="number" min="200" max="4000" step="10" value={t.eq.midFreq} onChange={e=>setTrack(i,{eq:{...t.eq, midFreq:+e.target.value}})} style={{width:100}}/>
-                    <label>High (dB)</label><input type="range" min="-12" max="12" step="0.5" value={t.eq.high} onChange={e=>setTrack(i,{eq:{...t.eq, high:+e.target.value}})} style={{width:120}}/>
-                    <span className="pill">Reverb Send</span>
-                    <input type="range" min="0" max="1" step="0.01" value={t.send} onChange={e=>setTrack(i,{send:+e.target.value})} style={{width:140}}/>
                   </div>
 
                   <div className="clips">
@@ -626,12 +1161,16 @@
               );
             })}
 
-            <p className="mini">Punch‑in/out: set In/Out and Pre‑roll; recording auto‑stops at Out and the resulting take is trimmed to the punch span (latency‑aware). Markers: add/go prev/next; select A & B to loop between them. Undo/Redo stores clip ops and parameter changes (coalesced). Click the timeline to move the playhead.</p>
+            <div className="card">
+              <button className="btn green" onClick={bounceToNewTrack}>Bounce to New Track</button>
+            </div>
+
+            <p className="mini">Transport: playhead-aware playback; loop uses precise <code>start(when, offset, duration)</code>. Punch shows red region and records only inside; optional count‑in + pre‑roll. Markers render on the ruler; set A/B and instantly loop A↔B. History keeps a compact snapshot for undo/redo (clips & parameters).</p>
           </div>
         );
       }
 
-      ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+      ReactDOM.createRoot(document.getElementById('root')).render(<FourTrackRecorder/>);
     </script>
-  </body>
+</body>
 </html>
