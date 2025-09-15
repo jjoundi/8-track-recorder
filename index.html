@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <title>Eight-Track Recorder — Day 5</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -10,267 +10,53 @@
     <!-- JSZip for project import/export -->
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <style>
-        :root {
-            --bg: #f6f7fb;
-            --card: #fff;
-            --ink: #0f172a;
-            --muted: #64748b;
-            --brand: #2563eb;
-            --accent: #10b981;
-        }
+      :root{ --bg:#f6f7fb; --card:#fff; --ink:#0f172a; --muted:#64748b; --brand:#2563eb; --accent:#10b981; }
+      *{box-sizing:border-box}
+      body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+      #root{max-width:1100px;margin:24px auto;padding:16px}
+      h1{margin:0 0 6px 0}
+      .sub{color:var(--muted);margin:0 0 16px 0}
+      .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+      .btn{padding:8px 12px;border-radius:10px;cursor:pointer;border:0;background:#e5e7eb}
+      .btn.primary{background:var(--brand);color:white}
+      .btn.green{background:var(--accent);color:white}
+      .btn.gray{background:#e5e7eb}
+      .btn.red{background:#ef4444;color:white}
+      .btn:disabled{opacity:.5;cursor:not-allowed}
+      select,input[type="number"],input[type="text"],input[type="range"]{padding:6px 8px;border-radius:10px;border:1px solid #e5e7eb;background:#fff}
+      input[type="range"]{padding:0}
+      .card{background:var(--card);padding:12px;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:12px}
+      .row{display:grid;grid-template-columns: 32px 160px 1fr 1fr 110px 70px 60px;gap:8px;align-items:center}
+      .mini{font-size:12px;color:var(--muted)}
+      .clips{display:grid;gap:8px;margin-top:6px}
+      .hr{height:1px;background:#e5e7eb;margin:10px 0}
+      .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+      .nowrap{white-space:nowrap}
+      .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+      .pill{font-size:11px;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#3730a3}
+      .pairBadge{font-size:11px;padding:2px 8px;border-radius:999px;background:#ecfeff;color:#155e75;border:1px solid #cffafe}
 
-        * {
-            box-sizing: border-box
-        }
+      /* Timeline */
+      .timeline{position:relative;height:64px;border-radius:10px;background:linear-gradient(90deg, rgba(0,0,0,0.04) 0 100%); cursor:crosshair}
+      .ticks{position:absolute;inset:0;background:repeating-linear-gradient(90deg, transparent 0px, transparent calc(100%/60), rgba(0,0,0,.07) calc(100%/60) calc(100%/60 + 1px));}
+      .tickLabels{position:absolute;inset:0;pointer-events:none}
+      .tickLabels span{position:absolute;top:4px;transform:translateX(-50%);font-size:10px;color:#475569}
+      .loopRegion{position:absolute;top:0;bottom:0;background:rgba(37,99,235,.15);border:1px solid rgba(37,99,235,.35);border-radius:10px}
+      .punchRegion{position:absolute;top:0;bottom:0;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);border-radius:10px}
+      .playhead{position:absolute;top:0;bottom:0;width:2px;background:#ef4444}
+      .marker{position:absolute;bottom:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center}
+      .marker i{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:10px solid #0ea5e9;margin-bottom:2px}
+      .marker span{font-size:10px;color:#0369a1;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:4px;padding:1px 4px}
 
-        body {
-            margin: 0;
-            font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-            background: var(--bg);
-            color: var(--ink)
-        }
-
-        #root {
-            max-width: 1100px;
-            margin: 24px auto;
-            padding: 16px
-        }
-
-        h1 {
-            margin: 0 0 6px 0
-        }
-
-        .sub {
-            color: var(--muted);
-            margin: 0 0 16px 0
-        }
-
-        .bar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: center
-        }
-
-        .btn {
-            padding: 8px 12px;
-            border-radius: 10px;
-            cursor: pointer;
-            border: 0;
-            background: #e5e7eb
-        }
-
-            .btn.primary {
-                background: var(--brand);
-                color: white
-            }
-
-            .btn.green {
-                background: var(--accent);
-                color: white
-            }
-
-            .btn.gray {
-                background: #e5e7eb
-            }
-
-            .btn.red {
-                background: #ef4444;
-                color: white
-            }
-
-            .btn:disabled {
-                opacity: .5;
-                cursor: not-allowed
-            }
-
-        select, input[type="number"], input[type="text"], input[type="range"] {
-            padding: 6px 8px;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
-            background: #fff
-        }
-
-        input[type="range"] {
-            padding: 0
-        }
-
-        .card {
-            background: var(--card);
-            padding: 12px;
-            border-radius: 14px;
-            box-shadow: 0 1px 3px rgba(0,0,0,.08);
-            margin-bottom: 12px
-        }
-
-        .row {
-            display: grid;
-            grid-template-columns: 32px 160px 1fr 1fr 110px 70px 60px;
-            gap: 8px;
-            align-items: center
-        }
-
-        .mini {
-            font-size: 12px;
-            color: var(--muted)
-        }
-
-        .clips {
-            display: grid;
-            gap: 8px;
-            margin-top: 6px
-        }
-
-        .hr {
-            height: 1px;
-            background: #e5e7eb;
-            margin: 10px 0
-        }
-
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px
-        }
-
-        .nowrap {
-            white-space: nowrap
-        }
-
-        .mono {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace
-        }
-
-        .pill {
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 999px;
-            background: #eef2ff;
-            color: #3730a3
-        }
-
-        .pairBadge {
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 999px;
-            background: #ecfeff;
-            color: #155e75;
-            border: 1px solid #cffafe
-        }
-
-        /* Timeline */
-        .timeline {
-            position: relative;
-            height: 64px;
-            border-radius: 10px;
-            background: linear-gradient(90deg, rgba(0,0,0,0.04) 0 100%);
-            cursor: crosshair
-        }
-
-        .ticks {
-            position: absolute;
-            inset: 0;
-            background: repeating-linear-gradient(90deg, transparent 0px, transparent calc(100%/60), rgba(0,0,0,.07) calc(100%/60) calc(100%/60 + 1px));
-        }
-
-        .tickLabels {
-            position: absolute;
-            inset: 0;
-            pointer-events: none
-        }
-
-            .tickLabels span {
-                position: absolute;
-                top: 4px;
-                transform: translateX(-50%);
-                font-size: 10px;
-                color: #475569
-            }
-
-        .loopRegion {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            background: rgba(37,99,235,.15);
-            border: 1px solid rgba(37,99,235,.35);
-            border-radius: 10px
-        }
-
-        .punchRegion {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            background: rgba(239,68,68,.12);
-            border: 1px solid rgba(239,68,68,.35);
-            border-radius: 10px
-        }
-
-        .playhead {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: #ef4444
-        }
-
-        .marker {
-            position: absolute;
-            bottom: 0;
-            transform: translateX(-50%);
-            display: flex;
-            flex-direction: column;
-            align-items: center
-        }
-
-            .marker i {
-                width: 0;
-                height: 0;
-                border-left: 6px solid transparent;
-                border-right: 6px solid transparent;
-                border-top: 10px solid #0ea5e9;
-                margin-bottom: 2px
-            }
-
-            .marker span {
-                font-size: 10px;
-                color: #0369a1;
-                background: #e0f2fe;
-                border: 1px solid #7dd3fc;
-                border-radius: 4px;
-                padding: 1px 4px
-            }
-
-        /* Compact sliders */
-        .slider {
-            width: 100%
-        }
-
-        .pan {
-            width: 100%
-        }
-
-        .idx {
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            background: #f1f5f9;
-            color: #0f172a;
-            font-weight: 600
-        }
-
-        .row .btn {
-            padding: 6px 8px
-        }
-
-        .row input[type="text"] {
-            padding: 6px 8px
-        }
+      /* Compact sliders */
+      .slider{width:100%}
+      .pan{width:100%}
+      .idx{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#f1f5f9;color:#0f172a;font-weight:600}
+      .row .btn{padding:6px 8px}
+      .row input[type="text"]{padding:6px 8px}
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div id="root"></div>
 
     <script type="text/babel">
@@ -291,7 +77,7 @@
       }
       const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
       const fmtTime = s=>{ if(!isFinite(s)||s<0) s=0; const m=Math.floor(s/60); const sec=s%60; return `${String(m).padStart(2,'0')}:${sec.toFixed(3).padStart(6,'0')}`; };
-
+      
       // ---------- WAV Export Utilities ----------
       function writeString(view, offset, string){ for(let i=0;i<string.length;i++){ view.setUint8(offset+i, string.charCodeAt(i)); } }
       function floatTo16BitPCM(output, offset, input){
@@ -342,7 +128,7 @@
 
         return new Blob([view], {type:'audio/wav'});
       }
-
+      
       // ---------- Peak/energy utilities for latency detection ----------
       function movingEnergy(data, win){
         const n=data.length; const out=new Float32Array(Math.max(0,n-win));
@@ -369,7 +155,7 @@
       // ---------- IndexedDB Utilities ----------
       const DB_NAME = 'eight-track-recorder-db';
       const STORE_NAME = 'projects';
-
+      
       let db = null;
       function openDb(){
         return new Promise((resolve, reject) => {
@@ -396,7 +182,7 @@
         await store.put(project, 'currentProject');
         return new Promise(resolve => tx.oncomplete = resolve);
       }
-
+      
       async function loadProjectFromDb(){
         const db = await openDb();
         const tx = db.transaction(STORE_NAME, 'readonly');
@@ -416,19 +202,23 @@
         const [selectedDevice,setSelectedDevice]=useState('');
         const [micGranted,setMicGranted]=useState(false);
         const [status,setStatus]=useState('Select input, then grant mic access.');
-
+        
         const [tempo,setTempo]=useState(100);
         const [sigTop,setSigTop]=useState(4); const [sigBottom,setSigBottom]=useState(4);
         const [countInBars,setCountInBars]=useState(1); const [clickEnabled,setClickEnabled]=useState(true);
         const [clickVol,setClickVol]=useState(0.7);
         const clickVolRef=useRef(0.7); useEffect(()=>{ clickVolRef.current = clickVol; }, [clickVol]);
-
+        
         const [latencyMs,setLatencyMs]=useState(0);
         const [isCalibrating,setIsCalibrating]=useState(false);
+        const [baseLatencySec, setBaseLatencySec] = useState(0);
+        const [outputLatencySec, setOutputLatencySec] = useState(0);
+        const [latencyHint, setLatencyHint] = useState('interactive');
 
         // Monitor
         const [monitorEnabled,setMonitorEnabled]=useState(true);
         const [monitorOnlyDuringRec,setMonitorOnlyDuringRec]=useState(true);
+        const [disableMonitorDuringRec, setDisableMonitorDuringRec] = useState(true);
         const [monitorGainVal,setMonitorGainVal]=useState(0.9);
         const [monitorPanVal, setMonitorPanVal] = useState(0);
 
@@ -438,7 +228,7 @@
         const [loopEndSec,setLoopEndSec]=useState(10);
         const [playheadSec,setPlayheadSec]=useState(0);
         const [nowSec,setNowSec]=useState(0);
-
+        
         // Punch
         const [punchEnabled,setPunchEnabled]=useState(false);
         const [punchInSec,setPunchInSec]=useState(2);
@@ -490,9 +280,40 @@
           async function loadDevices(){ try{ const devs=await navigator.mediaDevices.enumerateDevices(); const ins=devs.filter(d=>d.kind==='audioinput'); setDevices(ins); if(ins.length>0 && !selectedDevice) setSelectedDevice(ins[0].deviceId);}catch(e){console.error(e);} }
           loadDevices(); if(navigator.mediaDevices){ navigator.mediaDevices.ondevicechange = loadDevices; }
         },[]);
+        
+        // ---------- AudioContext and Latency ----------
+        // This useEffect manages the AudioContext lifecycle based on the latency hint.
+        useEffect(() => {
+          const createAudioContext = () => {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint });
+            audioCtxRef.current = ctx;
+            setBaseLatencySec(ctx.baseLatency);
+            setOutputLatencySec(ctx.outputLatency);
+            return ctx;
+          };
 
-        // ---------- AudioContext ----------
-        function ensureAudioContext(){ if(!audioCtxRef.current){ audioCtxRef.current = new (window.AudioContext||window.webkitAudioContext)(); } if(audioCtxRef.current.state==='suspended'){ audioCtxRef.current.resume(); } return audioCtxRef.current; }
+          const cleanup = () => {
+            if (audioCtxRef.current) {
+              stopAllPlayback();
+              audioCtxRef.current.close().catch(e => console.error("Error closing AudioContext:", e));
+              audioCtxRef.current = null;
+            }
+          };
+
+          if (!audioCtxRef.current) {
+            createAudioContext();
+          } else {
+            // Recreate context on latency hint change
+            cleanup();
+            createAudioContext();
+          }
+
+          return cleanup;
+        }, [latencyHint]);
+
+        function getAudioContext(){
+          return audioCtxRef.current;
+        }
 
         // ---------- Helpers ----------
         function stopAllPlayback(){ currentSourcesRef.current.forEach(({source})=>{ try{ source.stop(); }catch{} }); currentSourcesRef.current=[]; transportRunningRef.current=false; stopClick(); stopTicker(); clearLoopTimer(); clearPunchTimers(); }
@@ -500,7 +321,7 @@
         function clearLoopTimer(){ if(loopTimerRef.current){ clearTimeout(loopTimerRef.current); loopTimerRef.current=null; } }
         function clearPunchTimers(){ const p=punchTimersRef.current; if(p.start){ clearTimeout(p.start); p.start=null; } if(p.stop){ clearTimeout(p.stop); p.stop=null; } }
         const projectLenSec = ()=>{ let m=0; for(const t of tracks){ const d=t.clips[0]?.buffer?.duration||0; if(d>m) m=d; } const maxMarker = markers.reduce((acc,m)=>Math.max(acc,m.time||0),0); return Math.max(m, loopEndSec||0, punchOutSec||0, maxMarker, 10); };
-
+        
         // ---------- History ----------
         function makeSnapshot(){
           // Lightweight deep copy via JSON for our simple state
@@ -549,26 +370,76 @@
         function stopClick(){ isClickingRef.current=false; }
 
         // ---------- Mic ----------
-        async function requestMicrophone(){ try{ const constraints={ audio: selectedDevice? { deviceId:{exact:selectedDevice}, echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:2 } : true}; const stream=await navigator.mediaDevices.getUserMedia(constraints); micStreamRef.current=stream; setMicGranted(true); setStatus('🎤 Microphone ready.'); ensureAudioContext(); setupMonitorNodes(); updateMonitorRouting(); }catch(e){ console.error(e); micStreamRef.current=null; setMicGranted(false); setStatus('❌ Could not access microphone.'); } }
+        async function requestMicrophone(){
+          const ctx = getAudioContext();
+          if (!ctx) {
+            setStatus('❌ AudioContext not ready.');
+            return;
+          }
+          
+          try {
+            const constraints = { audio: selectedDevice? { deviceId:{exact:selectedDevice}, echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:2 } : true};
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            micStreamRef.current = stream;
+            setMicGranted(true);
+            setStatus('🎤 Microphone ready.');
+            
+            // Re-setup all nodes now that we have a new stream
+            setupMonitorNodes();
+            updateMonitorRouting();
+          } catch(e) {
+            console.error(e);
+            micStreamRef.current = null;
+            setMicGranted(false);
+            setStatus('❌ Could not access microphone.');
+          }
+        }
 
         // ---------- Monitor ----------
-        function setupMonitorNodes(){ const ctx=ensureAudioContext(); if(!micStreamRef.current) return; if(!monitorRef.current.src){ const m=monitorRef.current; m.src=ctx.createMediaStreamSource(micStreamRef.current); m.gain=ctx.createGain(); m.gain.gain.value=monitorGainVal; m.pan=(ctx.createStereoPanner)?ctx.createStereoPanner():null; if(m.pan) m.pan.pan.value=monitorPanVal; } }
-        function connectMonitor(){ const ctx=ensureAudioContext(); const m=monitorRef.current; if(!m.src || m.connected) return; if(m.pan){ m.src.connect(m.gain).connect(m.pan).connect(ctx.destination); } else { m.src.connect(m.gain).connect(ctx.destination); } m.connected=true; }
+        function setupMonitorNodes(){
+          const ctx = getAudioContext();
+          if(!ctx || !micStreamRef.current) return;
+          // Disconnect old nodes if they exist
+          if (monitorRef.current.src) {
+            monitorRef.current.src.disconnect();
+          }
+          monitorRef.current.connected = false;
+
+          const m=monitorRef.current; 
+          m.src=ctx.createMediaStreamSource(micStreamRef.current);
+          m.gain=ctx.createGain(); m.gain.gain.value=monitorGainVal;
+          m.pan=(ctx.createStereoPanner)?ctx.createStereoPanner():null;
+          if(m.pan) m.pan.pan.value=monitorPanVal;
+        }
+        function connectMonitor(){ const ctx=getAudioContext(); const m=monitorRef.current; if(!m.src || m.connected) return; if(m.pan){ m.src.connect(m.gain).connect(m.pan).connect(ctx.destination); } else { m.src.connect(m.gain).connect(ctx.destination); } m.connected=true; }
         function disconnectMonitor(){ const m=monitorRef.current; if(!m.connected) return; try{ if(m.pan) m.pan.disconnect(); m.gain.disconnect(); }catch{} m.connected=false; }
-        function updateMonitorRouting(){ if(!monitorEnabled){ disconnectMonitor(); } else if(monitorOnlyDuringRec){ const anyRec = tracks.some(t=>t.isRecording); if(anyRec) connectMonitor(); else disconnectMonitor(); } else { connectMonitor(); } if(monitorRef.current.gain) monitorRef.current.gain.gain.value=monitorGainVal; if(monitorRef.current.pan) monitorRef.current.pan.pan.value=monitorPanVal; }
-        useEffect(()=>{ updateMonitorRouting(); }, [monitorEnabled, monitorOnlyDuringRec, monitorGainVal, monitorPanVal, tracks]);
+        function updateMonitorRouting(){
+          const anyRec = tracks.some(t=>t.isRecording);
+          if (disableMonitorDuringRec && anyRec) {
+            disconnectMonitor();
+          } else if(!monitorEnabled){
+            disconnectMonitor();
+          } else if(monitorOnlyDuringRec){
+            if(anyRec) connectMonitor(); else disconnectMonitor();
+          } else {
+            connectMonitor();
+          }
+          if(monitorRef.current.gain) monitorRef.current.gain.gain.value=monitorGainVal;
+          if(monitorRef.current.pan) monitorRef.current.pan.pan.value=monitorPanVal;
+        }
+        useEffect(()=>{ updateMonitorRouting(); }, [monitorEnabled, monitorOnlyDuringRec, disableMonitorDuringRec, monitorGainVal, monitorPanVal, tracks]);
 
         // ---------- Scheduling ----------
         function schedulePlayback({ freshStart=true, excludeIndex=null, startPosSec=0, durationSec=null, destination=null }={}){
-          const ctx=ensureAudioContext(); if(freshStart){ stopAllPlayback(); } else if(transportRunningRef.current){ return; }
+          const ctx=getAudioContext(); if(freshStart){ stopAllPlayback(); } else if(transportRunningRef.current){ return; }
           const audible=currentAudibleSet(tracks); const startAt=ctx.currentTime+0.05; currentSourcesRef.current=[];
           tracks.forEach((t, ti)=>{
             if(excludeIndex!==null && ti===excludeIndex) return; const clip=t.clips[0]; if(!clip || !clip.buffer) return;
             const source=ctx.createBufferSource(); source.buffer=clip.buffer; const gain=ctx.createGain(); const panner=(ctx.createStereoPanner)?ctx.createStereoPanner():null; const a=audible[ti]; gain.gain.value=a.audible? a.volume:0; if(panner) panner.pan.value=a.pan;
             source.connect(gain);
             const finalDest = destination || (panner ? panner : gain);
-            if(panner){ gain.connect(panner); panner.connect(ctx.destination); if(mixDestRef.current) panner.connect(mixDestRef.current); } else { gain.connect(ctx.destination); if(mixDestRef.current) gain.connect(mixDestRef.current); }
-            const totalOffset = ((t.offsetMs||0)+(latencyMs||0))/1000;
+            if(panner){ gain.connect(panner); panner.connect(ctx.destination); if(mixDestRef.current) panner.connect(mixDestRef.current); } else { gain.connect(ctx.destination); if(mixDestRef.current) gain.connect(ctx.destination); }
+            const totalOffset = ((t.offsetMs||0)+(latencyMs||0)/1000) + baseLatencySec + outputLatencySec;
             const when = startAt + Math.max(0, totalOffset);
             const bufferOffset = Math.max(0, startPosSec + Math.max(0, -totalOffset));
             try{ if(durationSec){ source.start(when, bufferOffset, Math.max(0.001, durationSec)); } else { source.start(when, bufferOffset); } }catch(e){ console.warn('source.start failed', e); }
@@ -577,13 +448,13 @@
           transportRunningRef.current=true; startTicker(startPosSec);
           if(loopEnabled && durationSec){ clearLoopTimer(); const ms = (startAt - ctx.currentTime + durationSec) * 1000; loopTimerRef.current = setTimeout(()=>{ if(!transportRunningRef.current) return; schedulePlayback({ freshStart:true, startPosSec, durationSec }); }, ms); }
         }
-
+        
         // ---------- Record / Overdub ----------
         async function toggleRecord(i){
           if(!micGranted){ setStatus('Microphone not granted.'); return; }
-          const t=tracks[i]; const ctx=ensureAudioContext();
+          const t=tracks[i]; const ctx=getAudioContext();
           if(!t.isRecording){
-            await ctx.resume();
+            if(ctx.state === 'suspended') await ctx.resume();
             const baseStart = punchEnabled ? Math.max(0, punchInSec - preRollSec) : (loopEnabled ? loopStartSec : playheadSec);
             const dur = loopEnabled ? Math.max(0.001, loopEndSec - baseStart) : null;
             const spb=60/tempo; const countInSeconds=Math.max(0,countInBars)*sigTop*spb;
@@ -613,7 +484,7 @@
         function beginMediaRecorder(i, isPunch=false){
           setupMonitorNodes(); updateMonitorRouting(); const mime=getSupportedMimeType(); const rec=new MediaRecorder(micStreamRef.current,{ mimeType:mime }); const chunks=[];
           rec.ondataavailable=e=>{ if(e.data&&e.data.size>0) chunks.push(e.data); };
-          rec.onstop=async()=>{ disconnectMonitor(); const blob=new Blob(chunks,{type:rec.mimeType}); const url=URL.createObjectURL(blob); const ctx=ensureAudioContext(); setStatus('🔎 Decoding…'); let buffer=await blobToAudioBuffer(ctx, blob); const est=(ctx.baseLatency||0)+(ctx.outputLatency||0)+(latencyMs||0)/1000; if(est>0) buffer=trimAudioBuffer(ctx, buffer, est); const clip={ url, blob, buffer }; setTracks(prev=>{ const copy=[...prev]; copy[i]={...copy[i],clips:[...copy[i].clips, clip], isRecording:false, mediaRecorder:null}; return copy; }); pushHistory('Add clip'); setStatus(`💾 Saved clip on Track ${i+1}`); };
+          rec.onstop=async()=>{ disconnectMonitor(); const blob=new Blob(chunks,{type:rec.mimeType}); const url=URL.createObjectURL(blob); const ctx=getAudioContext(); setStatus('🔎 Decoding…'); let buffer=await blobToAudioBuffer(ctx, blob); const est=(ctx.baseLatency||0)+(ctx.outputLatency||0)+(latencyMs||0)/1000; if(est>0) buffer=trimAudioBuffer(ctx, buffer, est); const clip={ url, blob, buffer }; setTracks(prev=>{ const copy=[...prev]; copy[i]={...copy[i],clips:[...copy[i].clips, clip], isRecording:false, mediaRecorder:null}; return copy; }); pushHistory('Add clip'); setStatus(`💾 Saved clip on Track ${i+1}`); };
           setTracks(prev=>{ const copy=[...prev]; copy[i]={...copy[i],isRecording:true,mediaRecorder:rec}; return copy; });
           rec.start(); setStatus(isPunch? `⏺ Punching Track ${i+1}…` : `⏺ Recording Track ${i+1}…`);
         }
@@ -621,8 +492,8 @@
         // ---------- Auto Latency Calibration ----------
         async function calibrateLatency(){
           if(isCalibrating) return;
-          const ctx = ensureAudioContext();
-          if(!micStreamRef.current){ setStatus('❌ Calibrate: grant mic access first.'); return; }
+          const ctx = getAudioContext();
+          if(!micGranted || !micStreamRef.current){ setStatus('❌ Calibrate: grant mic access first.'); return; }
           setIsCalibrating(true); setStatus('🧪 Calibrating latency… Keep speakers at moderate level or connect loopback cable.');
 
           try{
@@ -693,7 +564,8 @@
         // ---------- Transport ----------
         function play(){
           if(tracks.every(t=>!t.clips?.length)){ setStatus('Nothing to play yet.'); return; }
-          const ctx=ensureAudioContext(); const startAt=ctx.currentTime+0.02; if(clickEnabled) startClickAt(ctx,startAt);
+          const ctx=getAudioContext(); if(ctx.state === 'suspended') ctx.resume();
+          const startAt=ctx.currentTime+0.02; if(clickEnabled) startClickAt(ctx,startAt);
           const startPos = loopEnabled? loopStartSec: playheadSec;
           const dur = loopEnabled? Math.max(0.001, loopEndSec - startPos): null;
           schedulePlayback({ freshStart:true, startPosSec:startPos, durationSec:dur }); setStatus('▶️ Playing…');
@@ -701,7 +573,7 @@
         function stop(){ stopAllPlayback(); // stop any pending punch, and any active recording
           tracks.forEach(t=>{ if(t.isRecording){ try{ t.mediaRecorder?.stop(); }catch{} } });
           setStatus('■ Stopped.'); }
-        function startTicker(startPos){ const ctx=ensureAudioContext(); transportBaseCtxTimeRef.current = ctx.currentTime; transportStartPosRef.current = startPos||0; cancelAnimationFrame(rafRef.current); const tick=()=>{ const elapsed = (ensureAudioContext().currentTime - transportBaseCtxTimeRef.current) + transportStartPosRef.current; setNowSec(elapsed); rafRef.current = requestAnimationFrame(tick); }; rafRef.current = requestAnimationFrame(tick); }
+        function startTicker(startPos){ const ctx=getAudioContext(); transportBaseCtxTimeRef.current = ctx.currentTime; transportStartPosRef.current = startPos||0; cancelAnimationFrame(rafRef.current); const tick=()=>{ const elapsed = (getAudioContext().currentTime - transportBaseCtxTimeRef.current) + transportStartPosRef.current; setNowSec(elapsed); rafRef.current = requestAnimationFrame(tick); }; rafRef.current = requestAnimationFrame(tick); }
         function stopTicker(){ cancelAnimationFrame(rafRef.current); setNowSec(0); }
 
         // ---------- Export/Bounce ----------
@@ -712,9 +584,9 @@
 
           const projectLength = projectLenSec();
           const offlineCtx = new OfflineAudioContext(isStereo ? 2 : 1, projectLength * targetSampleRate, targetSampleRate);
-
+          
           const audible = currentAudibleSet(tracks);
-
+          
           tracks.forEach((t, i) => {
             if(!t.clips.length) return;
             const clip = t.clips[0];
@@ -723,16 +595,16 @@
 
             const gain = offlineCtx.createGain();
             const panner = isStereo && (offlineCtx.createStereoPanner) ? offlineCtx.createStereoPanner() : null;
-
+            
             gain.gain.value = audible[i].audible ? audible[i].volume : 0;
             if(panner) panner.pan.value = audible[i].pan;
 
             source.connect(gain);
             if(panner) gain.connect(panner);
-
+            
             const finalNode = panner || gain;
             finalNode.connect(offlineCtx.destination);
-
+            
             const totalOffset = ((t.offsetMs || 0) + (latencyMs || 0)) / 1000;
             source.start(Math.max(0, totalOffset), 0, Math.max(0, source.buffer.duration - totalOffset));
           });
@@ -839,8 +711,8 @@
             setStatus('📂 Loading project...');
             const project = await loadProjectFromDb();
             if(!project){ setStatus('❌ No saved project found.'); return; }
-
-            const ctx = ensureAudioContext();
+            
+            const ctx = getAudioContext();
             const loadedTracks = await Promise.all(project.tracks.map(async t => {
               const loadedClips = await Promise.all(t.clips.map(async c => {
                 if(c.buffer){
@@ -857,7 +729,7 @@
               }));
               return { ...t, clips: loadedClips };
             }));
-
+            
             setTracks(loadedTracks);
             applySnapshot(project);
             setStatus('✅ Project loaded.');
@@ -866,7 +738,7 @@
             setStatus('❌ Load failed: ' + e.message);
           }
         }
-
+        
         async function exportProjectZip(){
           try {
             setStatus('📤 Exporting project to zip...');
@@ -884,7 +756,7 @@
               })),
               globals: makeSnapshot().globals
             };
-
+            
             zip.file('project.json', JSON.stringify(project, null, 2));
 
             for(const [i, track] of tracks.entries()){
@@ -895,7 +767,7 @@
                 }
               }
             }
-
+            
             const content = await zip.generateAsync({type:"blob"});
             const url = URL.createObjectURL(content);
             const a = document.createElement('a'); a.href = url; a.download = 'project.zip'; document.body.appendChild(a); a.click(); a.remove();
@@ -904,7 +776,7 @@
             setStatus('❌ Export failed: ' + e.message);
           }
         }
-
+        
         async function importProjectZip(event){
           try{
             setStatus('📂 Importing project...');
@@ -919,17 +791,17 @@
             }
             const project = JSON.parse(await projectJsonFile.async('string'));
 
-            const ctx = ensureAudioContext();
+            const ctx = getAudioContext();
             const loadedTracks = await Promise.all(project.tracks.map(async t => {
               const loadedClips = await Promise.all(t.clips.map(async c => {
                 if(c.bufferName){
                   const pcmFile = content.file(c.bufferName);
                   if(!pcmFile) throw new Error(`PCM file not found: ${c.bufferName}`);
-
+                  
                   const pcmData = await pcmFile.async('arraybuffer');
                   const audioBuffer = ctx.createBuffer(1, pcmData.byteLength / 4, 44100);
                   audioBuffer.getChannelData(0).set(new Float32Array(pcmData));
-
+                  
                   const blob = new Blob([pcmData], {type: 'audio/wav'});
                   return {
                     url: URL.createObjectURL(blob),
@@ -942,7 +814,7 @@
               }));
               return { ...t, clips: loadedClips };
             }));
-
+            
             setTracks(loadedTracks);
             applySnapshot(project);
             setStatus('✅ Project imported.');
@@ -965,7 +837,7 @@
         function loopBetweenMarkers(){ const A=markers.find(m=>m.id===markerAId); const B=markers.find(m=>m.id===markerBId); if(!A||!B) return; const a=Math.min(A.time,B.time), b=Math.max(A.time,B.time); setLoopStartSec(a); setLoopEndSec(b); setLoopEnabled(true); setStatus(`🔁 Loop ${a.toFixed(2)}–${b.toFixed(2)}s`); pushHistory('Loop A↔B'); }
 
         // decode any blobs missing buffers
-        useEffect(()=>{ async function decodeMissing(){ const ctx=audioCtxRef.current || new (window.AudioContext||window.webkitAudioContext)(); const next=tracks.map(t=>({...t})); let changed=false; for(let i=0;i<next.length;i++){ for(let ci=0;ci<next[i].clips.length;ci++){ const c=next[i].clips[ci]; if(c.blob && !c.buffer){ try{ c.buffer=await blobToAudioBuffer(ctx, c.blob); changed=true; }catch(e){ console.warn('Could not decode existing clip', e); } } } } if(changed) setTracks(next); } if(tracks.some(t=>t.clips.some(c=>c.blob && !c.buffer))){ decodeMissing(); } }, [tracks]);
+        useEffect(()=>{ async function decodeMissing(){ const ctx=getAudioContext(); if(!ctx) return; const next=tracks.map(t=>({...t})); let changed=false; for(let i=0;i<next.length;i++){ for(let ci=0;ci<next[i].clips.length;ci++){ const c=next[i].clips[ci]; if(c.blob && !c.buffer){ try{ c.buffer=await blobToAudioBuffer(ctx, c.blob); changed=true; }catch(e){ console.warn('Could not decode existing clip', e); } } } } if(changed) setTracks(next); } if(tracks.some(t=>t.clips.some(c=>c.blob && !c.buffer))){ decodeMissing(); } }, [tracks]);
 
         // ---------- Render ----------
         const maxSec = projectLenSec();
@@ -1040,9 +912,22 @@
                 <label>Count‑in</label><input type="number" min="0" max="8" value={countInBars} onChange={e=>setCountInBars(Math.max(0,+e.target.value||0))} style={{width:70}}/>
                 <label className="bar" style={{gap:6}}><input type="checkbox" checked={clickEnabled} onChange={e=>setClickEnabled(e.target.checked)} />Enable</label>
                 <label>Click Vol</label><input type="range" min="0" max="1" step="0.01" value={clickVol} onChange={e=>setClickVol(+e.target.value)} style={{width:160}}/>
-                <label>Latency (ms)</label><input type="number" value={latencyMs} onChange={e=>setLatencyMs(+e.target.value||0)} style={{width:88}}/>
-                <button className="btn" onClick={calibrateLatency} disabled={!micGranted || isCalibrating}>{isCalibrating? 'Calibrating…' : 'Calibrate'}</button>
+                <label>Latency (ms)</label>
+                <input type="number" value={latencyMs} onChange={e=>setLatencyMs(+e.target.value||0)} style={{width:88}}/>
+                <button className="btn" onClick={calibrateLatency} disabled={!micGranted || isCalibrating}>Calibrate</button>
                 <span className="mini">{status}</span>
+              </div>
+              <div className="hr"></div>
+              <div className="bar">
+                <span className="pill">Web Audio</span>
+                <label>Latency Hint</label>
+                <select value={latencyHint} onChange={e => setLatencyHint(e.target.value)}>
+                  <option value="interactive">Interactive</option>
+                  <option value="balanced">Balanced</option>
+                  <option value="playback">Playback</option>
+                </select>
+                <span className="mini">Base Latency: {baseLatencySec.toFixed(3)}s</span>
+                <span className="mini">Output Latency: {outputLatencySec.toFixed(3)}s</span>
               </div>
             </div>
 
@@ -1078,7 +963,7 @@
                 </div>
               </div>
             </div>
-
+            
             {/* Export/Persistence */}
             <div className="card">
               <div className="bar">
@@ -1093,7 +978,7 @@
                 <button className="btn" onClick={saveProject}>Save Project</button>
                 <button className="btn" onClick={loadProject}>Load Project</button>
                 <button className="btn" onClick={exportProjectZip}>Export .zip</button>
-                <label for="importZipFile" class="btn">Import .zip</label>
+                <label htmlFor="importZipFile" className="btn">Import .zip</label>
                 <input type="file" id="importZipFile" style={{display:'none'}} onChange={importProjectZip} accept=".zip"/>
               </div>
             </div>
@@ -1104,6 +989,7 @@
                 <span className="pill">Input monitor</span>
                 <label><input type="checkbox" checked={monitorEnabled} onChange={e=>setMonitorEnabled(e.target.checked)}/> Enabled</label>
                 <label><input type="checkbox" checked={monitorOnlyDuringRec} onChange={e=>setMonitorOnlyDuringRec(e.target.checked)}/> Only while rec</label>
+                <label><input type="checkbox" checked={disableMonitorDuringRec} onChange={e=>setDisableMonitorDuringRec(e.target.checked)}/> Disable monitor during rec</label>
                 <label>Level</label><input className="slider" type="range" min="0" max="1" step="0.01" value={monitorGainVal} onChange={e=>setMonitorGainVal(+e.target.value)} style={{width:160}}/>
                 <label>Pan</label><input className="pan" type="range" min="-1" max="1" step="0.01" value={monitorPanVal} onChange={e=>setMonitorPanVal(+e.target.value)} style={{width:160}}/>
               </div>
@@ -1160,7 +1046,7 @@
                 </div>
               );
             })}
-
+            
             <div className="card">
               <button className="btn green" onClick={bounceToNewTrack}>Bounce to New Track</button>
             </div>
@@ -1172,5 +1058,5 @@
 
       ReactDOM.createRoot(document.getElementById('root')).render(<FourTrackRecorder/>);
     </script>
-</body>
+  </body>
 </html>
