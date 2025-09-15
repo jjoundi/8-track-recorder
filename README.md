@@ -27,5 +27,8 @@ npm run dev   # HTTPS dev server for mic access
 - Project save/load via IndexedDB; export/import zip
 - Undo/redo; accessibility pass
 
+## How to use
+In the latest version I have removed the playback during recording so the direct monitor on the audio interface can be used. To sync it with the metronome, the tracks need to move  0.1s earlier, this way all tracks are in sync.
+
 ## License
 MIT © 2025 8‑track recorder contributors
